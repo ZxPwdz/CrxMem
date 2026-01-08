@@ -1,4 +1,4 @@
-# CrxMem
+# CrxMem - Cheatengine inpsired memory-scanner
 
 **Created by ZxPwd**
 
