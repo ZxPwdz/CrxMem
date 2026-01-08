@@ -1,6 +1,7 @@
 # CrxMem
 
 **Created by ZxPwd**
+
 **Discord: zxpwd**
 
 A powerful, open-source memory scanner and debugger suite for Windows, inspired by Cheat Engine. This repository contains the main application and its companion projects.
