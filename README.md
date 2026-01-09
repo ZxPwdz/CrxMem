@@ -7,7 +7,7 @@
 A powerful, open-source memory scanner and debugger suite for Windows, inspired by Cheat Engine. This repository contains the main application and its companion projects.
 
 ![CrxMem Preview](CrxMem/preview.png)
-
+![CrxMem Preview](preview2.png)
 ---
 
 ## IMPORTANT: Project Status
