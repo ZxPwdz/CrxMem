@@ -24,13 +24,12 @@ This route was promoted at the project owner's direction so the redesign is the 
 
 ## Outstanding parity gates
 
-1. Extract and verify a real assembler service before enabling free-form instruction patches.
-2. Persist patches and metadata using strong module identity plus RVA, with stale-binary detection and recoverable migration.
-3. Add complete WPF comment/bookmark create, edit, and delete workflows.
-4. Add direct hex nibble/paste editing on top of the verified patch transaction service.
-5. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
-6. Add register write-back only after paused-thread integration tests prove restoration and error handling.
-7. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
+1. Add complete WPF comment/bookmark create, edit, and delete workflows.
+2. Add direct hex nibble/paste editing on top of the verified patch transaction service.
+3. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
+4. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
+5. Add register write-back only after paused-thread integration tests prove restoration and error handling.
+6. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
 
 ## Performance and test record
 
@@ -55,9 +54,9 @@ dotnet test CrxMem.sln -c Release --no-build
 - The WPF viewer is reachable through the main `Memory View` button and `Tools > Memory View (WPF)`.
 - The legacy viewer remains separately reachable through `Tools > Memory Viewer (Legacy)`.
 - WPF layout is stored at `%LocalAppData%\CrxMem\MemoryView.layout.json`; close the window and rename or delete that file to reset layout safely.
-- Patch history is session-local. Do not treat it as recovery across process restarts or changed binaries.
+- Fingerprint-backed module-relative patch history survives restarts and reports restored/applied/stale state from current bytes. Absolute-address entries remain session-local and no persisted patch is auto-applied.
 - Each phase is a dedicated Git commit, allowing an individual phase to be reviewed or reverted without discarding the legacy route.
 
 ## Recommended next milestone
 
-Treat assembler extraction and durable module-identity persistence as Phase 13. Those two boundaries unlock safe instruction editing and reliable cross-run recovery. Follow with metadata editing, direct hex editing, and a true unwinder before repeating the default-route acceptance review.
+Phase 13 completed assembler extraction and durable module-identity persistence. The next milestone should expose versioned comment/bookmark editing and direct hex editing through the verified services, then build a true unwinder before repeating the parity review.

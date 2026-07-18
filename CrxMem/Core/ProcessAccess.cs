@@ -730,6 +730,7 @@ namespace CrxMem.Core
 
                 int moduleCount = (int)(bytesNeeded / IntPtr.Size);
                 char[] nameBuffer = new char[260];
+                char[] pathBuffer = new char[1024];
 
                 for (int i = 0; i < moduleCount && i < moduleHandles.Length; i++)
                 {
@@ -747,11 +748,13 @@ namespace CrxMem.Core
                     // Get module info (base address and size)
                     if (GetModuleInformation(Handle, hModule, out MODULEINFO modInfo, (uint)Marshal.SizeOf<MODULEINFO>()))
                     {
+                        uint pathLength = GetModuleFileNameExW(Handle, hModule, pathBuffer, (uint)pathBuffer.Length);
                         modules.Add(new ModuleInfo
                         {
                             ModuleName = moduleName,
                             BaseAddress = modInfo.lpBaseOfDll,
-                            Size = (int)modInfo.SizeOfImage
+                            Size = (int)modInfo.SizeOfImage,
+                            FilePath = pathLength > 0 ? new string(pathBuffer, 0, (int)pathLength) : null
                         });
                     }
                 }
@@ -1440,6 +1443,7 @@ namespace CrxMem.Core
         public string ModuleName { get; set; } = "";
         public IntPtr BaseAddress { get; set; }
         public int Size { get; set; }
+        public string? FilePath { get; set; }
 
         /// <summary>
         /// Alias for Size property (for compatibility)

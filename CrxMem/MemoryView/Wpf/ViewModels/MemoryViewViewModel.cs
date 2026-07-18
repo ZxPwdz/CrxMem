@@ -16,6 +16,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IStackService? _stackService;
     private readonly IWatchService? _watchService;
     private readonly IPatchService? _patchService;
+    private readonly IAssemblerService? _assemblerService;
     private readonly IBreakpointService? _breakpointService;
     private readonly IDebugExecutionService? _executionService;
     private readonly IModuleService? _moduleService;
@@ -31,6 +32,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _resumeCommand;
     private readonly AsyncRelayCommand _addWatchCommand;
     private readonly AsyncRelayCommand _applyPatchCommand;
+    private readonly AsyncRelayCommand _assembleCommand;
     private readonly AsyncRelayCommand _nopInstructionCommand;
     private readonly AsyncRelayCommand _undoPatchCommand;
     private readonly AsyncRelayCommand _redoPatchCommand;
@@ -64,6 +66,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _watchExpression = string.Empty;
     private RegisterSnapshot? _lastRegisterSnapshot;
     private string _patchBytes = string.Empty;
+    private string _assemblySource = string.Empty;
     private bool _padPatchWithNops = true;
     private ulong _moduleBaseAddress;
     private bool _processPanelsLoaded;
@@ -81,6 +84,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IStackService? stackService = null,
         IWatchService? watchService = null,
         IPatchService? patchService = null,
+        IAssemblerService? assemblerService = null,
         IBreakpointService? breakpointService = null,
         IDebugExecutionService? executionService = null,
         IModuleService? moduleService = null,
@@ -94,6 +98,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _stackService = stackService;
         _watchService = watchService;
         _patchService = patchService;
+        _assemblerService = assemblerService;
         _breakpointService = breakpointService;
         _executionService = executionService;
         _moduleService = moduleService;
@@ -115,6 +120,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _addWatchCommand = new AsyncRelayCommand(AddWatchAsync,
             () => !IsBusy && _watchService != null && !string.IsNullOrWhiteSpace(WatchExpression));
         _applyPatchCommand = new AsyncRelayCommand(ApplyPatchAsync, CanPatchSelection);
+        _assembleCommand = new AsyncRelayCommand(AssembleInstructionAsync,
+            () => !IsBusy && _assemblerService != null && SelectedInstruction != null && !string.IsNullOrWhiteSpace(AssemblySource));
         _nopInstructionCommand = new AsyncRelayCommand(NopInstructionAsync, CanPatchSelection);
         _undoPatchCommand = new AsyncRelayCommand(UndoPatchAsync,
             () => !IsBusy && _patchService?.CanUndo == true);
@@ -160,6 +167,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ResumeCommand => _resumeCommand;
     public ICommand AddWatchCommand => _addWatchCommand;
     public ICommand ApplyPatchCommand => _applyPatchCommand;
+    public ICommand AssembleCommand => _assembleCommand;
     public ICommand NopInstructionCommand => _nopInstructionCommand;
     public ICommand UndoPatchCommand => _undoPatchCommand;
     public ICommand RedoPatchCommand => _redoPatchCommand;
@@ -202,6 +210,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _patchBytes;
         set { if (SetField(ref _patchBytes, value)) _applyPatchCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public string AssemblySource
+    {
+        get => _assemblySource;
+        set { if (SetField(ref _assemblySource, value)) _assembleCommand.RaiseCanExecuteChanged(); }
     }
 
     public bool PadPatchWithNops
@@ -267,6 +281,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(SelectedInstructionText));
             OnPropertyChanged(nameof(SelectedInstructionComment));
             PatchBytes = value?.Bytes ?? string.Empty;
+            AssemblySource = value?.Instruction ?? string.Empty;
             HardwareBreakpointAddress = value?.RuntimeAddress.ToString("X") ?? string.Empty;
             RaisePatchCanExecuteChanged();
             RaiseExecutionCanExecuteChanged();
@@ -651,9 +666,39 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         return bytes.Length > 0;
     }
 
+    private Task AssembleInstructionAsync()
+    {
+        if (_assemblerService == null || SelectedInstruction == null) return Task.CompletedTask;
+        AssemblyResult result = _assemblerService.Assemble(new AssemblyRequest(
+            AssemblySource,
+            SelectedInstruction.RuntimeAddress,
+            Architecture.Equals("x64", StringComparison.OrdinalIgnoreCase) ? 64 : 32));
+        if (!result.Succeeded)
+        {
+            Status = result.Error ?? "Assembly failed.";
+            return Task.CompletedTask;
+        }
+        if (!TryParseBytes(SelectedInstruction.Bytes, out byte[] original))
+        {
+            Status = "The selected instruction bytes are unavailable.";
+            return Task.CompletedTask;
+        }
+        if (result.Bytes.Length > original.Length)
+        {
+            Status = $"Assembly rejected: {result.Bytes.Length} bytes exceed the selected {original.Length}-byte instruction.";
+            return Task.CompletedTask;
+        }
+        PatchBytes = string.Join(' ', result.Bytes.Select(value => value.ToString("X2")));
+        Status = result.Bytes.Length == original.Length
+            ? $"Assembled {result.Bytes.Length} bytes. Review and apply the verified patch."
+            : $"Assembled {result.Bytes.Length} bytes; NOP padding is required to replace {original.Length} bytes.";
+        return Task.CompletedTask;
+    }
+
     private void RaisePatchCanExecuteChanged()
     {
         _applyPatchCommand.RaiseCanExecuteChanged();
+        _assembleCommand.RaiseCanExecuteChanged();
         _nopInstructionCommand.RaiseCanExecuteChanged();
         _undoPatchCommand.RaiseCanExecuteChanged();
         _redoPatchCommand.RaiseCanExecuteChanged();

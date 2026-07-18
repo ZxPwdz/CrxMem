@@ -66,6 +66,26 @@ public sealed class MemoryViewWpfTests
     }
 
     [Fact]
+    public async Task AssembleCommand_PreparesBytesWithoutWritingMemory()
+    {
+        var patchService = new FakePatchService();
+        using var viewModel = new MemoryViewViewModel(
+            new FakeMemoryViewDataService(),
+            patchService: patchService,
+            assemblerService: new IcedAssemblerService());
+        await viewModel.InitializeAsync(0);
+        viewModel.AssemblySource = "nop";
+
+        Assert.True(viewModel.AssembleCommand.CanExecute(null));
+        viewModel.AssembleCommand.Execute(null);
+        await Task.Delay(50);
+
+        Assert.Equal("90", viewModel.PatchBytes);
+        Assert.Null(patchService.LastRequest);
+        Assert.Contains("NOP padding", viewModel.Status, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task DebugExecutionCommands_EnableOnlyForPausedSelectedThread()
     {
         var debug = new PausedDebugSession();
@@ -99,6 +119,7 @@ public sealed class MemoryViewWpfTests
                 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
                     Environment.SetEnvironmentVariable("windir", Environment.GetEnvironmentVariable("SystemRoot"));
 
+                System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Application).TypeHandle);
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
@@ -129,6 +150,9 @@ public sealed class MemoryViewWpfTests
                 var disassembly = Assert.IsType<VirtualizedDisassemblyControl>(window.FindName("disassemblyView"));
                 Assert.NotNull(disassembly.ContextMenu);
                 Assert.Equal(6, disassembly.ContextMenu!.Items.Count);
+                var assembleButton = Assert.IsType<Button>(window.FindName("assembleButton"));
+                Assert.Equal("Assemble", assembleButton.Content);
+                Assert.NotNull(Assert.IsType<MemoryViewViewModel>(window.DataContext).AssembleCommand);
                 window.Close();
 
                 var renderer = new VirtualizedDisassemblyControl

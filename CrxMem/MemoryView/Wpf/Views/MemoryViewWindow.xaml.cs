@@ -38,6 +38,7 @@ public partial class MemoryViewWindow : Window
             composition.StackService,
             composition.WatchService,
             composition.PatchService,
+            new IcedAssemblerService(),
             composition.BreakpointService,
             composition.BreakpointService,
             composition.ModuleService,
@@ -55,6 +56,7 @@ public partial class MemoryViewWindow : Window
         IStackService? stackService = null,
         IWatchService? watchService = null,
         IPatchService? patchService = null,
+        IAssemblerService? assemblerService = null,
         IBreakpointService? breakpointService = null,
         IDebugExecutionService? executionService = null,
         IModuleService? moduleService = null,
@@ -71,6 +73,7 @@ public partial class MemoryViewWindow : Window
             stackService: stackService,
             watchService: watchService,
             patchService: patchService,
+            assemblerService: assemblerService,
             breakpointService: breakpointService,
             executionService: executionService,
             moduleService: moduleService,
@@ -418,8 +421,10 @@ public partial class MemoryViewWindow : Window
     {
         var memory = new ProcessMemoryService(process);
         var modules = new ModuleService(process);
+        var moduleIdentity = new FileModuleIdentityService(modules);
+        var metadata = new VersionedMemoryMetadataService(modules, moduleIdentity);
         var patchAdapter = new ProcessPatchMemoryAdapter(process);
-        var patches = new PatchService(patchAdapter);
+        var patches = new PatchService(patchAdapter, new JsonPatchHistoryStore(), moduleIdentity);
         var debugSession = new NativeDebugSessionService(process);
         var breakpoints = new BreakpointService(
             patchAdapter,
@@ -429,7 +434,7 @@ public partial class MemoryViewWindow : Window
             new WindowsHardwareBreakpointAdapter(process));
         debugSession.EventCoordinator = breakpoints;
         return new MemoryViewComposition(
-            new MemoryViewDataService(process),
+            new MemoryViewDataService(memory, modules, metadata),
             new MemoryViewLayoutStore(),
             debugSession,
             new WindowsRegisterService(process),

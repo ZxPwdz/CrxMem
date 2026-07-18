@@ -1,5 +1,14 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 13 verified assembly and durable identity
+
+- Extracted a UI-free `IAssemblerService` backed by Iced's typed assembler and enabled the WPF Assemble button.
+- Assembly accepts one bounded instruction, prepares replacement bytes without writing, rejects unsupported syntax and oversized replacements, and delegates all mutation to the verified patch transaction.
+- Added module file paths, SHA-256/image-size fingerprints, RVA validation, and explicit mismatch results.
+- Added versioned JSON patch history for fingerprint-backed module-relative records. Reload resolves ASLR, compares the binary, inspects current bytes, and marks mismatches stale without using an old runtime address.
+- Added versioned comment/bookmark metadata keyed by module fingerprint plus RVA, including safe migration of currently resolvable legacy entries.
+- Added assembler, branch-target, invalid-input, fingerprint-change, versioned-store, stale-load, migration-boundary, and command-gating tests.
+
 ## 2026-07-18 — Dark DataGrid style repair
 
 - Corrected the drag-selection style to inherit from an explicitly keyed CrxMem dark DataGrid base instead of the operating-system default style.

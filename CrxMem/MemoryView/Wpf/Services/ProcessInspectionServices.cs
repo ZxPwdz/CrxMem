@@ -124,7 +124,8 @@ public sealed class ModuleService : IModuleService
                 .Select(module => new ModuleDescriptor(
                     module.ModuleName,
                     unchecked((ulong)module.BaseAddress.ToInt64()),
-                    unchecked((uint)module.Size)))
+                    unchecked((uint)module.Size),
+                    FilePath: module.FilePath))
                 .ToArray();
         }
         catch

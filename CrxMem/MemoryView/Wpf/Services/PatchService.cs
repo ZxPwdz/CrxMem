@@ -33,7 +33,8 @@ public sealed record PatchRequest(
     bool PadWithNops = false,
     string? Description = null,
     string? ModuleName = null,
-    ulong? ModuleRelativeAddress = null);
+    ulong? ModuleRelativeAddress = null,
+    ModuleIdentity? ModuleIdentity = null);
 
 public sealed record PatchRecord(
     Guid Id,
@@ -45,7 +46,8 @@ public sealed record PatchRecord(
     ulong? ModuleRelativeAddress,
     DateTimeOffset CreatedAt,
     bool IsApplied,
-    bool IsStale);
+    bool IsStale,
+    ModuleIdentity? ModuleIdentity = null);
 
 public sealed record PatchResult(
     PatchStatus Status,
@@ -128,12 +130,22 @@ public sealed class PatchService : IPatchService, IDisposable
     internal const uint PageExecuteReadWrite = 0x40;
 
     private readonly IPatchMemoryAdapter _memory;
+    private readonly IPatchHistoryStore? _historyStore;
+    private readonly IModuleIdentityService? _moduleIdentity;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly List<PatchRecord> _history = new();
     private readonly Stack<Guid> _redo = new();
 
-    public PatchService(IPatchMemoryAdapter memory) =>
+    public PatchService(
+        IPatchMemoryAdapter memory,
+        IPatchHistoryStore? historyStore = null,
+        IModuleIdentityService? moduleIdentity = null)
+    {
         _memory = memory ?? throw new ArgumentNullException(nameof(memory));
+        _historyStore = historyStore;
+        _moduleIdentity = moduleIdentity;
+        LoadPersistedHistory();
+    }
 
     public IReadOnlyList<PatchRecord> History => _history.ToArray();
     public bool CanUndo => _history.Any(item => item.IsApplied);
@@ -161,12 +173,15 @@ public sealed class PatchService : IPatchService, IDisposable
                 cancellationToken);
             if (!result.Succeeded) return result;
 
+            ModuleIdentity? identity = request.ModuleIdentity ??
+                (request.ModuleName == null ? null : _moduleIdentity?.GetCurrent(request.ModuleName));
             var record = new PatchRecord(
                 Guid.NewGuid(), request.Address, request.ExpectedOriginalBytes.ToArray(), patch,
                 request.Description, request.ModuleName, request.ModuleRelativeAddress,
-                DateTimeOffset.UtcNow, true, false);
+                DateTimeOffset.UtcNow, true, false, identity);
             _history.Add(record);
             _redo.Clear();
+            SavePersistedHistory();
             return result with { Record = record };
         }
         catch (OperationCanceledException)
@@ -229,7 +244,10 @@ public sealed class PatchService : IPatchService, IDisposable
             if (!result.Succeeded)
             {
                 if (result.Status == PatchStatus.Stale)
+                {
                     _history[index] = record with { IsStale = true };
+                    SavePersistedHistory();
+                }
                 return result with { Record = _history[index] };
             }
 
@@ -243,6 +261,7 @@ public sealed class PatchService : IPatchService, IDisposable
             {
                 _redo.Push(patchId);
             }
+            SavePersistedHistory();
             return result with { Record = updated };
         }
         catch (OperationCanceledException)
@@ -250,6 +269,57 @@ public sealed class PatchService : IPatchService, IDisposable
             return Failed(PatchStatus.Cancelled, PatchFailureStage.None, "The patch operation was cancelled.");
         }
         finally { _gate.Release(); }
+    }
+
+    private void LoadPersistedHistory()
+    {
+        if (_historyStore == null || _moduleIdentity == null) return;
+        foreach (PersistedPatchEntry persisted in _historyStore.Load())
+        {
+            ModuleIdentityResolution resolution = _moduleIdentity.Resolve(
+                persisted.ModuleIdentity, persisted.ModuleRelativeAddress);
+            ulong address = resolution.RuntimeAddress ?? 0;
+            bool applied = false;
+            bool stale = !resolution.IsMatch || address == 0;
+            if (!stale && _memory.IsAvailable)
+            {
+                try
+                {
+                    byte[]? current = _memory.Read(address, persisted.OriginalBytes.Length);
+                    if (current?.SequenceEqual(persisted.PatchedBytes) == true) applied = true;
+                    else if (current?.SequenceEqual(persisted.OriginalBytes) != true) stale = true;
+                }
+                catch { stale = true; }
+            }
+            else if (!stale)
+            {
+                stale = true;
+            }
+
+            _history.Add(new PatchRecord(
+                persisted.Id, address, persisted.OriginalBytes, persisted.PatchedBytes,
+                persisted.Description, persisted.ModuleIdentity.Name, persisted.ModuleRelativeAddress,
+                persisted.CreatedAt, applied, stale, persisted.ModuleIdentity));
+        }
+    }
+
+    private void SavePersistedHistory()
+    {
+        if (_historyStore == null) return;
+        try
+        {
+            PersistedPatchEntry[] entries = _history
+                .Where(record => record.ModuleIdentity != null && record.ModuleRelativeAddress.HasValue)
+                .Select(record => new PersistedPatchEntry(
+                    record.Id, record.ModuleIdentity!, record.ModuleRelativeAddress!.Value,
+                    record.OriginalBytes, record.PatchedBytes, record.Description, record.CreatedAt))
+                .ToArray();
+            _historyStore.Save(entries);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PatchService] Patch history persistence failed: {ex.Message}");
+        }
     }
 
     private PatchResult ExecuteTransaction(
