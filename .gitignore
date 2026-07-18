@@ -12,6 +12,8 @@ build64/
 .idea/
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
 
 # OS
 .DS_Store
@@ -21,6 +23,12 @@ desktop.ini
 # NuGet
 packages/
 *.nupkg
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage.*
+*.trx
 
 # Archives
 *.zip
@@ -61,6 +69,19 @@ Makefile
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.orig
 
 # Database
 *.db
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.snk
+appsettings.*.local.json
+settings.local.json

@@ -1,10 +1,13 @@
-# CrxMem - Cheatengine inpsired memory-scanner
+# CrxMem - Cheat Engine-inspired memory scanner
 
 **Created by ZxPwd**
 
 **Discord: zxpwd**
 
 A powerful, open-source memory scanner and debugger suite for Windows, inspired by Cheat Engine. This repository contains the main application and its companion projects.
+
+> [!WARNING]
+> CrxMem is pre-release research software. User-mode scanning is the primary development focus; debugger, injection, and kernel-driver features remain experimental and can destabilize target processes or Windows.
 
 ![CrxMem Preview](CrxMem/preview.png)
 ![CrxMem Preview](preview2.png)
@@ -114,6 +117,17 @@ Vectored Exception Handler based debugging DLL for injection into target process
 
 ## Building
 
+### Managed solution
+
+```powershell
+git clone https://github.com/ZxPwdz/CrxMem.git
+cd CrxMem
+dotnet restore CrxMem.sln
+dotnet build CrxMem.sln --configuration Release --no-restore
+```
+
+Authentication is not required to clone the public repository. Contributors should use Git Credential Manager, GitHub CLI browser login, or SSH when pushing; never put a token in a command or remote URL.
+
 ### CrxMem (Main Application)
 ```bash
 cd CrxMem
@@ -212,13 +226,7 @@ VEHDebugDll/
 
 ## Contributing
 
-Contributions are welcome! This project is in early development.
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and project boundaries. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -235,7 +243,7 @@ Contributions are welcome! This project is in early development.
 
 ## License
 
-MIT License
+Licensed under the [MIT License](LICENSE).
 
 ---
 
