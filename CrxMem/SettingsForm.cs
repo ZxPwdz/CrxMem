@@ -6,6 +6,8 @@ namespace CrxMem
 {
     public class SettingsForm : Form
     {
+        public event EventHandler? SettingsApplied;
+
         private TabControl tabControl;
         private TabPage tabGeneral;
         private TabPage tabScan;
@@ -847,6 +849,7 @@ namespace CrxMem
         private void BtnOK_Click(object? sender, EventArgs e)
         {
             SaveSettings();
+            SettingsApplied?.Invoke(this, EventArgs.Empty);
             this.DialogResult = DialogResult.OK;
             this.Close();
         }
@@ -854,6 +857,7 @@ namespace CrxMem
         private void BtnApply_Click(object? sender, EventArgs e)
         {
             SaveSettings();
+            SettingsApplied?.Invoke(this, EventArgs.Empty);
             MessageBox.Show("Settings applied successfully!", "Success",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

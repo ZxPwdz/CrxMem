@@ -16,6 +16,7 @@ using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using CrxMem.Core;
 using CrxMem.Models;
 using CrxShield;
@@ -45,11 +46,14 @@ namespace CrxMem
         
         private ProcessAccess? _process;
         private MemoryScanner? _scanner;
-        private System.Windows.Forms.Timer? _freezeTimer;
-        private System.Windows.Forms.Timer? _autoAttachTimer;
-        private System.Windows.Forms.Timer? _suspendTimer;
+        private DispatcherTimer? _freezeTimer;
+        private DispatcherTimer? _autoAttachTimer;
+        private DispatcherTimer? _suspendTimer;
+        private DispatcherTimer? _updateTimer;
         private FastProcessWatcher? _fastProcessWatcher;
         private bool _liveUpdatesEnabled = true;
+        private HwndSource? _windowSource;
+        private readonly HwndSourceHook _windowHook;
 
         // Singleton form instances
         private MemoryView.MemoryViewForm? _memoryViewForm;
@@ -69,6 +73,7 @@ namespace CrxMem
         
         public MainWindow()
         {
+            _windowHook = WndHook;
             InitializeComponent();
             
             // Set window title with version
@@ -100,11 +105,41 @@ namespace CrxMem
             base.OnSourceInitialized(e);
 
             // Register for hotkey messages
-            HwndSource source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-            source.AddHook(new HwndSourceHook(WndHook));
+            _windowSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+            _windowSource?.AddHook(_windowHook);
 
             // Register global hotkeys now that we have a window handle
             RegisterGlobalHotkeys();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _scanner?.CancelScan();
+
+            _freezeTimer?.Stop();
+            _autoAttachTimer?.Stop();
+            _suspendTimer?.Stop();
+            _updateTimer?.Stop();
+
+            _fastProcessWatcher?.Dispose();
+            _fastProcessWatcher = null;
+
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+                UnregisterAllHotkeys(hwnd);
+
+            _windowSource?.RemoveHook(_windowHook);
+            _windowSource = null;
+
+            _memoryViewForm?.Close();
+            _acBypassForm?.Close();
+            _luaEditorForm?.Close();
+            _luaEditorWindow?.Close();
+
+            _process?.Dispose();
+            _process = null;
+
+            base.OnClosed(e);
         }
 
 
@@ -893,22 +928,25 @@ namespace CrxMem
 
         private void InitializeTimers()
         {
-            _freezeTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            _freezeTimer = new DispatcherTimer(DispatcherPriority.Background);
             _freezeTimer.Tick += FreezeTimer_Tick;
             _freezeTimer.Start();
 
-            _autoAttachTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _autoAttachTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromSeconds(2)
+            };
             _autoAttachTimer.Tick += AutoAttachTimer_Tick;
             _autoAttachTimer.Start();
 
             // Suspend timer - for repeatedly suspending attached process
-            _suspendTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            _suspendTimer = new DispatcherTimer(DispatcherPriority.Send);
             _suspendTimer.Tick += SuspendTimer_Tick;
             // Don't start yet - will be started when process attaches and interval > 0
 
-            var updateTimer = new System.Windows.Forms.Timer { Interval = 200 };
-            updateTimer.Tick += UpdateTimer_Tick;
-            updateTimer.Start();
+            _updateTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _updateTimer.Tick += UpdateTimer_Tick;
+            _updateTimer.Start();
         }
 
         private void SuspendTimer_Tick(object? sender, EventArgs e)
@@ -931,7 +969,7 @@ namespace CrxMem
             int interval = SettingsManager.SuspendInterval;
             if (interval > 0 && SettingsManager.FastSuspendOnAttach && _process != null)
             {
-                _suspendTimer!.Interval = interval;
+                _suspendTimer!.Interval = TimeSpan.FromMilliseconds(interval);
                 _suspendTimer.Start();
                 System.Diagnostics.Debug.WriteLine($"[SuspendTimer] Started with interval {interval}ms");
             }
@@ -1047,19 +1085,34 @@ namespace CrxMem
         private void ApplySettings()
         {
             chkFastScan.IsChecked = SettingsManager.FastScanByDefault;
-            _liveUpdatesEnabled = true;
+            _liveUpdatesEnabled = menuLiveUpdates.IsChecked;
+
+            if (_freezeTimer != null)
+                _freezeTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(10, SettingsManager.FreezeInterval));
+
+            if (_updateTimer != null)
+                _updateTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(50, SettingsManager.UpdateInterval));
+
+            StopSuspendTimer();
+            StartSuspendTimerIfNeeded();
             RestartAutoAttach();
         }
 
         private void RestartAutoAttach()
         {
-            _fastProcessWatcher?.Stop();
+            _fastProcessWatcher?.Dispose();
+            _fastProcessWatcher = null;
+
             if (SettingsManager.AlwaysAutoAttach && SettingsManager.FastAutoAttach)
             {
-                _fastProcessWatcher = new FastProcessWatcher();
+                _fastProcessWatcher = new FastProcessWatcher
+                {
+                    PollingIntervalMs = SettingsManager.FastAutoAttachInterval,
+                    ImmediatelySuspend = SettingsManager.FastSuspendOnAttach
+                };
                 _fastProcessWatcher.ProcessDetected += (p) => Dispatcher.Invoke(() => HandleFastProcessDetected(p));
                 var processNames = SettingsManager.AutoAttachProcess.Split(';', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
-                _fastProcessWatcher.Start(processNames);
+                _fastProcessWatcher.Start(processNames, SettingsManager.UseWmiProcessWatch);
                 _autoAttachTimer?.Stop();
             }
             else _autoAttachTimer?.Start();
@@ -1360,7 +1413,14 @@ namespace CrxMem
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
             var form = new SettingsForm();
+            form.SettingsApplied += SettingsForm_SettingsApplied;
             form.ShowDialog();
+        }
+
+        private void SettingsForm_SettingsApplied(object? sender, EventArgs e)
+        {
+            ApplySettings();
+            RegisterGlobalHotkeys();
         }
 
         private LuaScriptEditorForm? _luaEditorForm;

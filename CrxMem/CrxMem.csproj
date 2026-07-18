@@ -26,5 +26,13 @@
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Retained as migration reference; the WPF MainWindow is the active shell. -->
+    <Compile Remove="Legacy\**\*.cs" />
+    <EmbeddedResource Remove="Legacy\**\*.resx" />
+    <None Include="Legacy\**\*.cs" />
+    <None Include="Legacy\**\*.resx" />
+  </ItemGroup>
+
 
 </Project>
