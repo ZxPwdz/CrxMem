@@ -1,5 +1,29 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 3 process-inspection boundaries
+
+### Features added or repaired
+
+- Added typed process identity, module, region, memory-location, and memory-read result models.
+- Added `IProcessMemoryService`, `IModuleService`, and `IMemoryMetadataService` with `ProcessAccess` compatibility adapters.
+- Made complete, partial, unreadable, unavailable-process, and cancelled reads explicit.
+- Refactored the WPF preview to consume services instead of invoking process-memory and metadata APIs directly.
+- Added module-name plus RVA metadata locations while retaining the existing runtime-address managers as the compatibility backend.
+
+### Tests added
+
+- Unopened-process result behavior, partial reads, unreadable code, module-relative metadata context, and supported address forms.
+- Release result: 21 tests passed, 0 failed; solution build completed with 0 errors.
+
+### Known issues
+
+- Legacy comment/bookmark persistence still stores runtime addresses; durable module identity migration is deferred until a versioned metadata store is introduced.
+- This phase adds read-only boundaries only; safe writes are gated behind `IPatchService`.
+
+### Next recommended task
+
+Phase 4: replace the basic address resolver with a tested expression parser and navigation history.
+
 ## 2026-07-18 — Phase 2 WPF preview shell
 
 ### Files added

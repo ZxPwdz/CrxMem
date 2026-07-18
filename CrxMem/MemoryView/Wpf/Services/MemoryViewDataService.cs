@@ -18,28 +18,29 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
     private const int DecodeByteCount = 4096;
     private const int MaximumInstructions = 300;
     private const int HexRowCount = 24;
-    private readonly ProcessAccess _process;
+    private readonly IProcessMemoryService _memory;
+    private readonly IModuleService _modules;
+    private readonly IMemoryMetadataService _metadata;
 
     public MemoryViewDataService(ProcessAccess process)
+        : this(
+            new ProcessMemoryService(process),
+            new ModuleService(process),
+            new LegacyMemoryMetadataService())
     {
-        _process = process ?? throw new ArgumentNullException(nameof(process));
     }
 
-    public ulong GetDefaultAddress()
+    public MemoryViewDataService(
+        IProcessMemoryService memory,
+        IModuleService modules,
+        IMemoryMetadataService metadata)
     {
-        try
-        {
-            IntPtr entryPoint = _process.Target?.MainModule?.EntryPointAddress ?? IntPtr.Zero;
-            if (entryPoint != IntPtr.Zero) return unchecked((ulong)entryPoint.ToInt64());
-        }
-        catch
-        {
-            // Module enumeration below is the permission-tolerant fallback.
-        }
-
-        ModuleInfo? module = _process.GetModules().FirstOrDefault();
-        return module == null ? 0UL : unchecked((ulong)module.BaseAddress.ToInt64());
+        _memory = memory ?? throw new ArgumentNullException(nameof(memory));
+        _modules = modules ?? throw new ArgumentNullException(nameof(modules));
+        _metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
     }
+
+    public ulong GetDefaultAddress() => _modules.GetDefaultAddress();
 
     public bool TryResolveAddress(string expression, out ulong address, out string? error)
     {
@@ -57,8 +58,7 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         {
             string moduleName = value[..plusIndex].Trim();
             string offsetText = RemoveHexPrefix(value[(plusIndex + 1)..].Trim());
-            ModuleInfo? module = _process.GetModules().FirstOrDefault(item =>
-                item.ModuleName.Equals(moduleName, StringComparison.OrdinalIgnoreCase));
+            ModuleDescriptor? module = _modules.FindByName(moduleName);
             if (module == null)
             {
                 error = $"Module '{moduleName}' is not loaded.";
@@ -71,7 +71,7 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
                 return false;
             }
 
-            address = unchecked((ulong)module.BaseAddress.ToInt64()) + offset;
+            address = module.BaseAddress + offset;
             return true;
         }
 
@@ -85,44 +85,53 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         return true;
     }
 
-    public Task<MemoryViewSnapshot> LoadSnapshotAsync(ulong address, CancellationToken cancellationToken) =>
-        Task.Run(() => LoadSnapshot(address, cancellationToken), cancellationToken);
-
-    private MemoryViewSnapshot LoadSnapshot(ulong address, CancellationToken cancellationToken)
+    public async Task<MemoryViewSnapshot> LoadSnapshotAsync(ulong address, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_process.IsOpen || _process.Target == null || _process.Target.HasExited)
+        ProcessIdentity identity = _memory.Identity;
+        if (!identity.IsAvailable)
         {
             throw new InvalidOperationException("The selected process is no longer available.");
         }
 
-        var runtimeAddress = new IntPtr(unchecked((long)address));
-        ModuleInfo? module = _process.GetModuleForAddress(runtimeAddress);
-        MemoryRegion? region = MemoryRegion.Query(_process.Handle, runtimeAddress);
-        byte[] code = _process.Read(runtimeAddress, DecodeByteCount) ?? Array.Empty<byte>();
+        ModuleDescriptor? module = _modules.FindByAddress(address);
+        MemoryRegionDescriptor? region = _memory.QueryRegion(address);
+        ulong alignedHexAddress = address & ~0xFUL;
+        Task<MemoryReadResult> codeTask = _memory.ReadAsync(address, DecodeByteCount, cancellationToken);
+        Task<MemoryReadResult> hexTask = _memory.ReadAsync(
+            alignedHexAddress, 16 * HexRowCount, cancellationToken);
+        await Task.WhenAll(codeTask, hexTask);
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<DisassemblyPreviewRow> instructions = Decode(address, code, module, cancellationToken);
-        IReadOnlyList<HexPreviewRow> hexRows = BuildHexRows(address, cancellationToken);
-        string processName = _process.Target.ProcessName;
-        string moduleName = module?.ModuleName ?? "—";
-        ulong moduleBase = module == null ? 0 : unchecked((ulong)module.BaseAddress.ToInt64());
+        MemoryReadResult codeRead = await codeTask;
+        MemoryReadResult hexRead = await hexTask;
+        ThrowForTerminalReadState(codeRead, cancellationToken);
+        ThrowForTerminalReadState(hexRead, cancellationToken, allowUnreadable: true);
+
+        IReadOnlyList<DisassemblyPreviewRow> instructions = await Task.Run(
+            () => Decode(address, codeRead.Data, module, identity.Is64Bit, cancellationToken),
+            cancellationToken);
+        IReadOnlyList<HexPreviewRow> hexRows = BuildHexRows(
+            alignedHexAddress, hexRead.Data, identity.Is64Bit, cancellationToken);
+        string moduleName = module?.Name ?? "—";
+        ulong moduleBase = module?.BaseAddress ?? 0;
         string offset = module == null ? "—" : $"{address - moduleBase:X}";
         string protection = region == null ? "Unavailable" : FormatProtection(region.Protection);
         string regionText = region == null
             ? "Unavailable"
-            : $"{unchecked((ulong)region.BaseAddress.ToInt64()):X16} – {unchecked((ulong)(region.BaseAddress.ToInt64() + region.Size)):X16}";
-        string status = code.Length == 0
-            ? "Address is unreadable."
-            : $"Inspection mode · decoded {instructions.Count} rows from {code.Length:N0} bytes";
+            : $"{region.BaseAddress:X16} – {region.BaseAddress + region.Size:X16}";
+        string readQualifier = codeRead.Status == MemoryReadStatus.Partial ? "partial read · " : string.Empty;
+        string status = codeRead.Data.Length == 0
+            ? codeRead.Error ?? "Address is unreadable."
+            : $"Inspection mode · {readQualifier}decoded {instructions.Count} rows from {codeRead.Data.Length:N0} bytes";
 
         return new MemoryViewSnapshot(
             address,
-            processName,
-            _process.Target.Id,
+            identity.Name,
+            identity.ProcessId,
             moduleName,
             moduleBase,
-            _process.Is64Bit ? "x64" : "x86",
+            identity.Is64Bit ? "x64" : "x86",
             offset,
             protection,
             regionText,
@@ -132,12 +141,16 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
     }
 
     private IReadOnlyList<DisassemblyPreviewRow> Decode(
-        ulong address, byte[] code, ModuleInfo? module, CancellationToken cancellationToken)
+        ulong address,
+        byte[] code,
+        ModuleDescriptor? module,
+        bool is64Bit,
+        CancellationToken cancellationToken)
     {
         var rows = new List<DisassemblyPreviewRow>();
         if (code.Length == 0) return rows;
 
-        var decoder = IcedDecoder.Create(_process.Is64Bit ? 64 : 32, code);
+        var decoder = IcedDecoder.Create(is64Bit ? 64 : 32, code);
         decoder.IP = address;
         var formatter = new NasmFormatter();
         formatter.Options.HexPrefix = "0x";
@@ -166,11 +179,12 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
             }
 
             ulong runtimeAddress = instruction.IsInvalid ? address + (ulong)offset : instruction.IP;
-            string comment = CommentManager.Get(unchecked((long)runtimeAddress)) ?? ResolveFlowTarget(instruction, module);
-            string marker = BookmarkManager.Exists(unchecked((long)runtimeAddress)) ? "◆" : string.Empty;
+            MemoryLocation location = MemoryLocation.Create(runtimeAddress, module);
+            string comment = _metadata.GetComment(location) ?? ResolveFlowTarget(instruction, module);
+            string marker = _metadata.HasBookmark(location) ? "◆" : string.Empty;
             rows.Add(new DisassemblyPreviewRow(
                 marker,
-                runtimeAddress.ToString(_process.Is64Bit ? "X16" : "X8"),
+                runtimeAddress.ToString(is64Bit ? "X16" : "X8"),
                 Convert.ToHexString(instructionBytes).Chunk(2).Select(chars => new string(chars)).Aggregate((left, right) => left + " " + right),
                 instructionText,
                 comment,
@@ -182,11 +196,13 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         return rows;
     }
 
-    private IReadOnlyList<HexPreviewRow> BuildHexRows(ulong address, CancellationToken cancellationToken)
+    private static IReadOnlyList<HexPreviewRow> BuildHexRows(
+        ulong alignedAddress,
+        byte[] data,
+        bool is64Bit,
+        CancellationToken cancellationToken)
     {
         const int bytesPerRow = 16;
-        ulong alignedAddress = address & ~0xFUL;
-        byte[] data = _process.Read(new IntPtr(unchecked((long)alignedAddress)), bytesPerRow * HexRowCount) ?? Array.Empty<byte>();
         var rows = new List<HexPreviewRow>();
 
         for (int offset = 0; offset < data.Length; offset += bytesPerRow)
@@ -196,24 +212,38 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
             string bytes = string.Join(" ", row.ToArray().Select(value => value.ToString("X2")));
             var ascii = new StringBuilder(row.Length);
             foreach (byte value in row) ascii.Append(value is >= 32 and < 127 ? (char)value : '.');
-            rows.Add(new HexPreviewRow((alignedAddress + (ulong)offset).ToString(_process.Is64Bit ? "X16" : "X8"), bytes, ascii.ToString()));
+            rows.Add(new HexPreviewRow(
+                (alignedAddress + (ulong)offset).ToString(is64Bit ? "X16" : "X8"),
+                bytes,
+                ascii.ToString()));
         }
 
         return rows;
     }
 
-    private static string ResolveFlowTarget(Instruction instruction, ModuleInfo? module)
+    private static string ResolveFlowTarget(Instruction instruction, ModuleDescriptor? module)
     {
         ulong target = instruction.FlowControl is FlowControl.Call or FlowControl.UnconditionalBranch or FlowControl.ConditionalBranch
             ? instruction.NearBranchTarget
             : instruction.IsIPRelativeMemoryOperand ? instruction.IPRelativeMemoryAddress : 0;
         if (target == 0 || module == null) return string.Empty;
 
-        ulong moduleBase = unchecked((ulong)module.BaseAddress.ToInt64());
-        ulong moduleEnd = moduleBase + unchecked((uint)module.Size);
-        return target >= moduleBase && target < moduleEnd
-            ? $"{module.ModuleName}+{target - moduleBase:X}"
+        return module.Contains(target)
+            ? $"{module.Name}+{target - module.BaseAddress:X}"
             : $"0x{target:X}";
+    }
+
+    private static void ThrowForTerminalReadState(
+        MemoryReadResult result,
+        CancellationToken cancellationToken,
+        bool allowUnreadable = false)
+    {
+        if (result.Status == MemoryReadStatus.Cancelled)
+            throw new OperationCanceledException(cancellationToken);
+        if (result.Status == MemoryReadStatus.ProcessUnavailable)
+            throw new InvalidOperationException(result.Error ?? "The selected process is no longer available.");
+        if (!allowUnreadable && result.Status == MemoryReadStatus.Unreadable)
+            throw new InvalidOperationException(result.Error ?? "The requested memory is unreadable.");
     }
 
     private static string FormatProtection(uint protection)
