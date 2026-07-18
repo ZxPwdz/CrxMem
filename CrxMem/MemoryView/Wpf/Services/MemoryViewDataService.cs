@@ -9,7 +9,7 @@ namespace CrxMem.MemoryView.Wpf.Services;
 public interface IMemoryViewDataService
 {
     ulong GetDefaultAddress();
-    bool TryResolveAddress(string expression, out ulong address, out string? error);
+    Task<AddressExpressionResult> ResolveAddressAsync(string expression, CancellationToken cancellationToken);
     Task<MemoryViewSnapshot> LoadSnapshotAsync(ulong address, CancellationToken cancellationToken);
 }
 
@@ -21,69 +21,35 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
     private readonly IProcessMemoryService _memory;
     private readonly IModuleService _modules;
     private readonly IMemoryMetadataService _metadata;
+    private readonly IAddressExpressionService _addresses;
 
     public MemoryViewDataService(ProcessAccess process)
-        : this(
-            new ProcessMemoryService(process),
-            new ModuleService(process),
-            new LegacyMemoryMetadataService())
     {
+        ArgumentNullException.ThrowIfNull(process);
+        _memory = new ProcessMemoryService(process);
+        _modules = new ModuleService(process);
+        _metadata = new LegacyMemoryMetadataService();
+        _addresses = new AddressExpressionService(_memory, _modules);
     }
 
     public MemoryViewDataService(
         IProcessMemoryService memory,
         IModuleService modules,
-        IMemoryMetadataService metadata)
+        IMemoryMetadataService metadata,
+        IAddressExpressionService? addresses = null)
     {
         _memory = memory ?? throw new ArgumentNullException(nameof(memory));
         _modules = modules ?? throw new ArgumentNullException(nameof(modules));
         _metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
+        _addresses = addresses ?? new AddressExpressionService(_memory, _modules);
     }
 
     public ulong GetDefaultAddress() => _modules.GetDefaultAddress();
 
-    public bool TryResolveAddress(string expression, out ulong address, out string? error)
-    {
-        address = 0;
-        error = null;
-        string value = expression.Trim();
-        if (string.IsNullOrEmpty(value))
-        {
-            error = "Enter a hexadecimal address or module+offset.";
-            return false;
-        }
-
-        int plusIndex = value.IndexOf('+');
-        if (plusIndex > 0 && plusIndex < value.Length - 1)
-        {
-            string moduleName = value[..plusIndex].Trim();
-            string offsetText = RemoveHexPrefix(value[(plusIndex + 1)..].Trim());
-            ModuleDescriptor? module = _modules.FindByName(moduleName);
-            if (module == null)
-            {
-                error = $"Module '{moduleName}' is not loaded.";
-                return false;
-            }
-
-            if (!ulong.TryParse(offsetText, System.Globalization.NumberStyles.HexNumber, null, out ulong offset))
-            {
-                error = "The module offset is not valid hexadecimal.";
-                return false;
-            }
-
-            address = module.BaseAddress + offset;
-            return true;
-        }
-
-        if (!ulong.TryParse(RemoveHexPrefix(value).Replace("`", string.Empty),
-                System.Globalization.NumberStyles.HexNumber, null, out address))
-        {
-            error = "The address is not valid hexadecimal.";
-            return false;
-        }
-
-        return true;
-    }
+    public Task<AddressExpressionResult> ResolveAddressAsync(
+        string expression,
+        CancellationToken cancellationToken) =>
+        _addresses.EvaluateAsync(expression, cancellationToken);
 
     public async Task<MemoryViewSnapshot> LoadSnapshotAsync(ulong address, CancellationToken cancellationToken)
     {
@@ -255,9 +221,6 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         if ((protection & MemoryRegion.PAGE_GUARD) != 0) parts.Add("Guard");
         return parts.Count == 0 ? $"0x{protection:X}" : string.Join(" / ", parts);
     }
-
-    private static string RemoveHexPrefix(string value) =>
-        value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
 
     private sealed class PlainFormatterOutput : FormatterOutput
     {

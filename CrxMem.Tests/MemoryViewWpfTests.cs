@@ -1,6 +1,5 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
-using CrxMem.Core;
 using CrxMem.MemoryView.Wpf.Models;
 using CrxMem.MemoryView.Wpf.Services;
 using CrxMem.MemoryView.Wpf.ViewModels;
@@ -66,8 +65,8 @@ public sealed class MemoryViewWpfTests
                 Assert.Contains("MemoryView.UiFont",
                     dictionary.MergedDictionaries[1].Keys.Cast<object>());
 
-                using var process = new ProcessAccess();
-                var window = new MemoryViewWindow(process);
+                var window = new MemoryViewWindow(
+                    new FakeMemoryViewDataService(), new FakeMemoryViewLayoutStore());
                 Assert.Equal("CrxMem Memory View (WPF Preview)", window.Title);
                 Assert.IsType<MemoryViewViewModel>(window.DataContext);
                 window.Close();
@@ -91,10 +90,15 @@ public sealed class MemoryViewWpfTests
 
         public ulong GetDefaultAddress() => DefaultAddress;
 
-        public bool TryResolveAddress(string expression, out ulong address, out string? error)
+        public Task<AddressExpressionResult> ResolveAddressAsync(
+            string expression,
+            CancellationToken cancellationToken)
         {
-            error = null;
-            return ulong.TryParse(expression, System.Globalization.NumberStyles.HexNumber, null, out address);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(
+                ulong.TryParse(expression, System.Globalization.NumberStyles.HexNumber, null, out ulong address)
+                    ? AddressExpressionResult.Resolved(address)
+                    : AddressExpressionResult.Failed("Invalid address."));
         }
 
         public Task<MemoryViewSnapshot> LoadSnapshotAsync(ulong address, CancellationToken cancellationToken)
@@ -114,5 +118,11 @@ public sealed class MemoryViewWpfTests
                 "Read / Execute", "0000000140000000 – 0000000140100000",
                 instructions, hexRows, "Inspection ready"));
         }
+    }
+
+    private sealed class FakeMemoryViewLayoutStore : IMemoryViewLayoutStore
+    {
+        public MemoryViewLayoutSettings Load() => new();
+        public void Save(MemoryViewLayoutSettings settings) { }
     }
 }

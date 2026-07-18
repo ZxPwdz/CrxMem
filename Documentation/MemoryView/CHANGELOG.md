@@ -1,5 +1,30 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 4 expression navigation and layout
+
+### Features added or repaired
+
+- Added an asynchronous address-expression parser/evaluator with hexadecimal literals, modules, arithmetic, parentheses, optional registers/symbols, and up to four `[expression]` pointer dereferences.
+- Added bounded Back/Forward history with forward-stack truncation and selected-instruction restoration.
+- Added stale-navigation generation checks in addition to cancellation.
+- Added recent-expression history and versioned JSON persistence for window placement and primary pane sizes.
+- Added toolbar Back/Forward actions, Alt+Left/Alt+Right shortcuts, and an editable recent-address dropdown.
+
+### Tests added
+
+- Valid and invalid expression forms, module/register/symbol resolution, nested pointers, unreadable pointers, arithmetic errors, history semantics, capacity bounds, and layout persistence recovery.
+- Release result: 39 tests passed, 0 failed; solution build completed with 0 errors.
+
+### Known issues
+
+- Register expressions remain unavailable in the running preview until a verified paused-thread register source is connected.
+- Symbol expressions remain unavailable until a symbol provider is implemented.
+- Navigation history is session-scoped; only recent expression text and layout are persisted.
+
+### Next recommended task
+
+Phase 5: extract the disassembly service and replace the interim DataGrid with a bounded custom virtualized renderer.
+
 ## 2026-07-18 — Phase 3 process-inspection boundaries
 
 ### Features added or repaired

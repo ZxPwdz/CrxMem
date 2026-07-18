@@ -6,6 +6,10 @@
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource MemoryView.WindowBackgroundBrush}"
         Foreground="{DynamicResource MemoryView.TextPrimaryBrush}">
+    <Window.InputBindings>
+        <KeyBinding Key="Left" Modifiers="Alt" Command="{Binding BackCommand}"/>
+        <KeyBinding Key="Right" Modifiers="Alt" Command="{Binding ForwardCommand}"/>
+    </Window.InputBindings>
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -78,10 +82,15 @@
                     <Button Content="◉ Breakpoints" Style="{StaticResource ToolbarButton}" IsEnabled="False" Foreground="{StaticResource MemoryView.BreakpointBrush}" ToolTipService.ShowOnDisabled="True" ToolTip="Breakpoint manager is not implemented"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                    <TextBox x:Name="addressBox" Width="210" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                             FontFamily="{StaticResource MemoryView.MonoFont}" Text="{Binding AddressExpression, UpdateSourceTrigger=PropertyChanged}">
-                        <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding NavigateCommand}"/></TextBox.InputBindings>
-                    </TextBox>
+                    <Button Content="←" Command="{Binding BackCommand}" Style="{StaticResource ToolbarButton}" ToolTip="Back (Alt+Left)"/>
+                    <Button Content="→" Command="{Binding ForwardCommand}" Style="{StaticResource ToolbarButton}" ToolTip="Forward (Alt+Right)"/>
+                    <ComboBox x:Name="addressBox" Width="240" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                              IsEditable="True" IsTextSearchEnabled="False"
+                              ItemsSource="{Binding RecentExpressions}"
+                              FontFamily="{StaticResource MemoryView.MonoFont}"
+                              Text="{Binding AddressExpression, UpdateSourceTrigger=PropertyChanged}">
+                        <ComboBox.InputBindings><KeyBinding Key="Enter" Command="{Binding NavigateCommand}"/></ComboBox.InputBindings>
+                    </ComboBox>
                     <Button Content="Go" Command="{Binding NavigateCommand}" Margin="5,0,8,0"/>
                     <Button Content="↻" Command="{Binding RefreshCommand}" Style="{StaticResource ToolbarButton}" ToolTip="Refresh inspection data"/>
                     <Button Content="⚙" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="MemoryView-specific settings are planned"/>
@@ -107,7 +116,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*" MinWidth="580"/>
                 <ColumnDefinition Width="5"/>
-                <ColumnDefinition Width="350" MinWidth="280"/>
+                <ColumnDefinition x:Name="inspectorColumn" Width="350" MinWidth="280"/>
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0">
@@ -115,7 +124,7 @@
                     <RowDefinition Height="31"/>
                     <RowDefinition Height="*" MinHeight="220"/>
                     <RowDefinition Height="5"/>
-                    <RowDefinition Height="255" MinHeight="160"/>
+                    <RowDefinition x:Name="bottomToolsRow" Height="255" MinHeight="160"/>
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Background="{StaticResource MemoryView.PanelRaisedBrush}"
@@ -154,7 +163,7 @@
                 <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 
                 <Grid Grid.Row="3">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition Width="350" MinWidth="280"/></Grid.ColumnDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition x:Name="patchEditorColumn" Width="350" MinWidth="280"/></Grid.ColumnDefinitions>
                     <TabControl Grid.Column="0">
                         <TabItem Header="Hex Dump">
                             <DataGrid ItemsSource="{Binding HexRows}" AutoGenerateColumns="False" HeadersVisibility="None">
@@ -199,7 +208,7 @@
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 
             <Grid Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}">
-                <Grid.RowDefinitions><RowDefinition Height="3*"/><RowDefinition Height="5"/><RowDefinition Height="2*"/></Grid.RowDefinitions>
+                <Grid.RowDefinitions><RowDefinition x:Name="registerPanelRow" Height="3*"/><RowDefinition Height="5"/><RowDefinition Height="2*"/></Grid.RowDefinitions>
                 <Border Grid.Row="0" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="31"/><RowDefinition Height="*"/></Grid.RowDefinitions>

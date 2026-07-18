@@ -56,15 +56,15 @@ public sealed class ProcessInspectionServiceTests
     [InlineData("target.EXE+0x20", 0x140000020UL)]
     [InlineData("0x140001000", 0x140001000UL)]
     [InlineData("00000001`40001000", 0x140001000UL)]
-    public void TryResolveAddress_ResolvesSupportedPhaseThreeForms(string expression, ulong expected)
+    public async Task ResolveAddressAsync_ResolvesSupportedForms(string expression, ulong expected)
     {
         var service = new MemoryViewDataService(
             new FakeProcessMemoryService(), new FakeModuleService(), new RecordingMetadataService());
 
-        bool resolved = service.TryResolveAddress(expression, out ulong address, out string? error);
+        AddressExpressionResult result = await service.ResolveAddressAsync(expression, CancellationToken.None);
 
-        Assert.True(resolved, error);
-        Assert.Equal(expected, address);
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(expected, result.Address);
     }
 
     private sealed class FakeProcessMemoryService : IProcessMemoryService

@@ -10,8 +10,12 @@ namespace CrxMem.MemoryView.Wpf.ViewModels;
 public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IMemoryViewDataService _dataService;
+    private readonly INavigationHistoryService _history;
     private readonly AsyncRelayCommand _navigateCommand;
+    private readonly AsyncRelayCommand _backCommand;
+    private readonly AsyncRelayCommand _forwardCommand;
     private CancellationTokenSource? _navigationCancellation;
+    private long _navigationGeneration;
     private string _addressExpression = string.Empty;
     private string _status = "Ready";
     private bool _isBusy;
@@ -25,17 +29,25 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _region = "—";
     private DisassemblyPreviewRow? _selectedInstruction;
 
-    public MemoryViewViewModel(IMemoryViewDataService dataService)
+    public MemoryViewViewModel(
+        IMemoryViewDataService dataService,
+        INavigationHistoryService? history = null)
     {
         _dataService = dataService;
+        _history = history ?? new NavigationHistoryService();
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
+        _backCommand = new AsyncRelayCommand(GoBackAsync, () => !IsBusy && _history.CanGoBack);
+        _forwardCommand = new AsyncRelayCommand(GoForwardAsync, () => !IsBusy && _history.CanGoForward);
     }
 
     public ObservableCollection<DisassemblyPreviewRow> Instructions { get; } = new();
     public ObservableCollection<HexPreviewRow> HexRows { get; } = new();
+    public ObservableCollection<string> RecentExpressions { get; } = new();
     public ICommand NavigateCommand => _navigateCommand;
     public AsyncRelayCommand RefreshCommand { get; }
+    public ICommand BackCommand => _backCommand;
+    public ICommand ForwardCommand => _forwardCommand;
 
     public string AddressExpression
     {
@@ -61,6 +73,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             if (!SetField(ref _isBusy, value)) return;
             _navigateCommand.RaiseCanExecuteChanged();
             RefreshCommand.RaiseCanExecuteChanged();
+            _backCommand.RaiseCanExecuteChanged();
+            _forwardCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -92,38 +106,61 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         }
 
         AddressExpression = $"{address:X}";
-        await NavigateAsync(address);
+        await NavigateAsync(address, AddressExpression, addToHistory: true);
     }
 
     private async Task NavigateFromExpressionAsync()
     {
-        if (!_dataService.TryResolveAddress(AddressExpression, out ulong address, out string? error))
+        AddressExpressionResult result = await _dataService.ResolveAddressAsync(
+            AddressExpression, CancellationToken.None);
+        if (!result.Success)
         {
-            Status = error ?? "Invalid address.";
+            Status = result.Error ?? "Invalid address.";
             return;
         }
 
-        await NavigateAsync(address);
+        await NavigateAsync(result.Address, AddressExpression, addToHistory: true);
     }
 
     private async Task RefreshAsync()
     {
-        if (_dataService.TryResolveAddress(AddressExpression, out ulong address, out string? error))
+        AddressExpressionResult result = await _dataService.ResolveAddressAsync(
+            AddressExpression, CancellationToken.None);
+        if (result.Success)
         {
-            await NavigateAsync(address);
+            await NavigateAsync(result.Address, AddressExpression, addToHistory: false);
         }
         else
         {
-            Status = error ?? "Invalid address.";
+            Status = result.Error ?? "Invalid address.";
         }
     }
 
-    private async Task NavigateAsync(ulong address)
+    private async Task GoBackAsync()
+    {
+        NavigationEntry? entry = _history.GoBack();
+        if (entry != null) await NavigateAsync(entry.Address, entry.Expression, addToHistory: false, entry.SelectedAddress);
+        RaiseHistoryCanExecuteChanged();
+    }
+
+    private async Task GoForwardAsync()
+    {
+        NavigationEntry? entry = _history.GoForward();
+        if (entry != null) await NavigateAsync(entry.Address, entry.Expression, addToHistory: false, entry.SelectedAddress);
+        RaiseHistoryCanExecuteChanged();
+    }
+
+    private async Task NavigateAsync(
+        ulong address,
+        string expression,
+        bool addToHistory,
+        ulong? selectedAddress = null)
     {
         _navigationCancellation?.Cancel();
         _navigationCancellation?.Dispose();
         _navigationCancellation = new CancellationTokenSource();
         CancellationToken cancellationToken = _navigationCancellation.Token;
+        long generation = Interlocked.Increment(ref _navigationGeneration);
         IsBusy = true;
         Status = $"Reading 0x{address:X}…";
 
@@ -131,7 +168,18 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         {
             MemoryViewSnapshot snapshot = await _dataService.LoadSnapshotAsync(address, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            if (generation != Interlocked.Read(ref _navigationGeneration)) return;
             Apply(snapshot);
+            AddressExpression = expression;
+            if (selectedAddress.HasValue)
+                SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selectedAddress.Value)
+                    ?? Instructions.FirstOrDefault();
+            if (addToHistory)
+            {
+                _history.Push(new NavigationEntry(address, expression, SelectedInstruction?.RuntimeAddress));
+                RememberExpression(expression);
+            }
+            RaiseHistoryCanExecuteChanged();
         }
         catch (OperationCanceledException)
         {
@@ -145,7 +193,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
-            if (!cancellationToken.IsCancellationRequested) IsBusy = false;
+            if (generation == Interlocked.Read(ref _navigationGeneration)) IsBusy = false;
         }
     }
 
@@ -175,6 +223,32 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _navigationCancellation?.Cancel();
         _navigationCancellation?.Dispose();
         _navigationCancellation = null;
+    }
+
+    public void LoadRecentExpressions(IEnumerable<string> expressions)
+    {
+        RecentExpressions.Clear();
+        foreach (string expression in expressions
+                     .Where(value => !string.IsNullOrWhiteSpace(value))
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .Take(20))
+            RecentExpressions.Add(expression);
+    }
+
+    private void RememberExpression(string expression)
+    {
+        if (string.IsNullOrWhiteSpace(expression)) return;
+        string? existing = RecentExpressions.FirstOrDefault(value =>
+            value.Equals(expression, StringComparison.OrdinalIgnoreCase));
+        if (existing != null) RecentExpressions.Remove(existing);
+        RecentExpressions.Insert(0, expression);
+        while (RecentExpressions.Count > 20) RecentExpressions.RemoveAt(RecentExpressions.Count - 1);
+    }
+
+    private void RaiseHistoryCanExecuteChanged()
+    {
+        _backCommand.RaiseCanExecuteChanged();
+        _forwardCommand.RaiseCanExecuteChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

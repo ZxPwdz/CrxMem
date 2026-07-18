@@ -28,12 +28,13 @@ The read-only WPF preview shell is available from `Tools > Memory View (WPF Prev
 
 - The legacy viewer remains the default and the WPF preview is not at feature parity.
 - The disassembly and hex panes use interim virtualized `DataGrid` controls rather than the final custom renderers.
-- Address input is currently limited to absolute hexadecimal and `module+offset`.
-- Process reads now report partial/unreadable/unavailable states through typed services, but symbol, register, arithmetic, and dereference address expressions are not implemented yet.
+- Address input supports hexadecimal values, modules, arithmetic, parentheses, and bounded pointer dereferences. Register and symbol names produce explicit unknown-name errors until their providers are connected.
+- Navigation Back/Forward is session-scoped; recent expression text and basic pane/window layout persist locally.
+- Process reads report partial/unreadable/unavailable states through typed services.
 - Metadata is represented as module plus RVA at the WPF service boundary, while the compatibility backend still reads legacy runtime-address storage.
 - Debug commands, registers, stack, watches, breakpoints, call stack, memory map, assembly, and patching are disabled rather than simulated.
 - The preview is read-only and does not change target memory or protection.
-- Splitter/window layout persistence is not implemented yet.
+- Basic splitter and window layout persistence is implemented; columns, selected tabs, and pane visibility remain deferred.
 
 ## Explicit nonclaims
 
