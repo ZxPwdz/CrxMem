@@ -1,5 +1,40 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 2 WPF preview shell
+
+### Files added
+
+- WPF MemoryView theme dictionaries, preview models, read-only data service, view model, and window.
+- WPF view-model and compiled-resource smoke tests.
+
+### Features added or repaired
+
+- Added a separately labelled `Memory View (WPF Preview)` route under Tools while preserving the legacy viewer.
+- Added real attached-process identity, module context, bounded Iced disassembly, memory-region information, comments, bookmarks, and read-only hex rows.
+- Added asynchronous navigation, refresh, cancellation, process-exit errors, and deterministic view-model cleanup.
+- Recreated the reference hierarchy with a dense dark debugger toolbar, disassembly workspace, bottom tools, register placeholder, information pane, splitters, and status bar.
+- Disabled every debugger and memory-mutation command that does not yet have a verified service path.
+
+### Features removed
+
+- None. The legacy MemoryView remains the default and unchanged.
+
+### Tests added
+
+- View-model initialization and unavailable-address behavior.
+- WPF compiled resource-dictionary loading on an STA thread.
+- Release result: 14 tests passed, 0 failed; solution build completed with 0 errors.
+
+### Known issues
+
+- The preview disassembly and hex tables use WPF `DataGrid` as an interim renderer.
+- Address expressions support only absolute hexadecimal and `module+offset` in this phase.
+- Debugger state, registers, stack, watches, breakpoints, call stack, memory map, assembly, and patching remain intentionally disabled.
+
+### Next recommended task
+
+Phase 3: extract typed process-memory, module, region, and metadata service boundaries before adding more interactive behavior.
+
 ## 2026-07-18 — Phase 1 audit
 
 ### Files added

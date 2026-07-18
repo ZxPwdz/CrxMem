@@ -57,6 +57,7 @@ namespace CrxMem
 
         // Singleton form instances
         private MemoryView.MemoryViewForm? _memoryViewForm;
+        private MemoryView.Wpf.Views.MemoryViewWindow? _memoryViewWpfWindow;
         private AntiCheatBypassForm? _acBypassForm;
 
         // WPF ListView data collections
@@ -132,6 +133,7 @@ namespace CrxMem
             _windowSource = null;
 
             _memoryViewForm?.Close();
+            _memoryViewWpfWindow?.Close();
             _acBypassForm?.Close();
             _luaEditorForm?.Close();
             _luaEditorWindow?.Close();
@@ -216,6 +218,7 @@ namespace CrxMem
                 // Stop suspend timer when switching processes
                 StopSuspendTimer();
 
+                _memoryViewWpfWindow?.Close();
                 _process?.Dispose();
                 _process = new ProcessAccess();
 
@@ -1239,6 +1242,32 @@ namespace CrxMem
         // ═══════════════════════════════════════════════════════════════════
 
         private void MemoryView_Click(object sender, RoutedEventArgs e) => OpenOrFocusMemoryView(IntPtr.Zero);
+
+        private void MemoryViewWpfPreview_Click(object sender, RoutedEventArgs e)
+        {
+            if (_process == null || !_process.IsOpen)
+            {
+                System.Windows.MessageBox.Show(this,
+                    "Select a process in the main CrxMem window before opening the WPF Memory View preview.",
+                    "No process selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_memoryViewWpfWindow is { IsLoaded: true })
+            {
+                if (_memoryViewWpfWindow.WindowState == WindowState.Minimized)
+                    _memoryViewWpfWindow.WindowState = WindowState.Normal;
+                _memoryViewWpfWindow.Activate();
+                return;
+            }
+
+            _memoryViewWpfWindow = new MemoryView.Wpf.Views.MemoryViewWindow(_process)
+            {
+                Owner = this
+            };
+            _memoryViewWpfWindow.Closed += (_, _) => _memoryViewWpfWindow = null;
+            _memoryViewWpfWindow.Show();
+        }
 
         private void OpenOrFocusMemoryView(IntPtr startAddress)
         {

@@ -35,3 +35,9 @@ No debugger behavior was changed during the audit phase.
 | Breakpoint manager | No synchronized breakpoint collection |
 
 Entries will be appended when a command obtains a tested implementation path.
+
+## Phase 2 preview — 2026-07-18
+
+- Added no debugger behavior and made no debugger correctness claims.
+- The WPF preview labels itself `Inspection mode` and keeps Attach, Run, Pause, stepping, breakpoint, register-editing, assembly, and patch commands disabled.
+- The legacy viewer remains available for existing behavior; its known debugger and patching limitations are unchanged.

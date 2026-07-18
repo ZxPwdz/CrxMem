@@ -1,0 +1,58 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="MemoryView.WindowBackground">#101419</Color>
+    <Color x:Key="MemoryView.PanelBackground">#151A20</Color>
+    <Color x:Key="MemoryView.PanelRaised">#1A2027</Color>
+    <Color x:Key="MemoryView.ToolbarBackground">#171C22</Color>
+    <Color x:Key="MemoryView.HeaderBackground">#1B2128</Color>
+    <Color x:Key="MemoryView.SelectionBackground">#174B75</Color>
+    <Color x:Key="MemoryView.SelectionInactive">#253746</Color>
+    <Color x:Key="MemoryView.HoverBackground">#202A33</Color>
+    <Color x:Key="MemoryView.Border">#2B333C</Color>
+    <Color x:Key="MemoryView.BorderStrong">#3A4652</Color>
+    <Color x:Key="MemoryView.Focus">#368ED8</Color>
+    <Color x:Key="MemoryView.TextPrimary">#D8DEE5</Color>
+    <Color x:Key="MemoryView.TextSecondary">#9AA6B2</Color>
+    <Color x:Key="MemoryView.TextMuted">#697581</Color>
+    <Color x:Key="MemoryView.TextDisabled">#4C5660</Color>
+    <Color x:Key="MemoryView.Blue">#4CA4FF</Color>
+    <Color x:Key="MemoryView.Cyan">#57C7D4</Color>
+    <Color x:Key="MemoryView.Green">#7BC96F</Color>
+    <Color x:Key="MemoryView.Yellow">#D6C760</Color>
+    <Color x:Key="MemoryView.Orange">#E89A5B</Color>
+    <Color x:Key="MemoryView.Red">#F06464</Color>
+    <Color x:Key="MemoryView.Purple">#B68CFF</Color>
+    <Color x:Key="MemoryView.Breakpoint">#F25B5B</Color>
+    <Color x:Key="MemoryView.InstructionPointer">#E2B84B</Color>
+    <Color x:Key="MemoryView.Bookmark">#4DA8FF</Color>
+    <Color x:Key="MemoryView.Patched">#D98CFF</Color>
+    <Color x:Key="MemoryView.ChangedValue">#F17C68</Color>
+
+    <SolidColorBrush x:Key="MemoryView.WindowBackgroundBrush" Color="{StaticResource MemoryView.WindowBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.PanelBackgroundBrush" Color="{StaticResource MemoryView.PanelBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.PanelRaisedBrush" Color="{StaticResource MemoryView.PanelRaised}"/>
+    <SolidColorBrush x:Key="MemoryView.ToolbarBackgroundBrush" Color="{StaticResource MemoryView.ToolbarBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.HeaderBackgroundBrush" Color="{StaticResource MemoryView.HeaderBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.SelectionBackgroundBrush" Color="{StaticResource MemoryView.SelectionBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.SelectionInactiveBrush" Color="{StaticResource MemoryView.SelectionInactive}"/>
+    <SolidColorBrush x:Key="MemoryView.HoverBackgroundBrush" Color="{StaticResource MemoryView.HoverBackground}"/>
+    <SolidColorBrush x:Key="MemoryView.BorderBrush" Color="{StaticResource MemoryView.Border}"/>
+    <SolidColorBrush x:Key="MemoryView.BorderStrongBrush" Color="{StaticResource MemoryView.BorderStrong}"/>
+    <SolidColorBrush x:Key="MemoryView.FocusBrush" Color="{StaticResource MemoryView.Focus}"/>
+    <SolidColorBrush x:Key="MemoryView.TextPrimaryBrush" Color="{StaticResource MemoryView.TextPrimary}"/>
+    <SolidColorBrush x:Key="MemoryView.TextSecondaryBrush" Color="{StaticResource MemoryView.TextSecondary}"/>
+    <SolidColorBrush x:Key="MemoryView.TextMutedBrush" Color="{StaticResource MemoryView.TextMuted}"/>
+    <SolidColorBrush x:Key="MemoryView.TextDisabledBrush" Color="{StaticResource MemoryView.TextDisabled}"/>
+    <SolidColorBrush x:Key="MemoryView.BlueBrush" Color="{StaticResource MemoryView.Blue}"/>
+    <SolidColorBrush x:Key="MemoryView.CyanBrush" Color="{StaticResource MemoryView.Cyan}"/>
+    <SolidColorBrush x:Key="MemoryView.GreenBrush" Color="{StaticResource MemoryView.Green}"/>
+    <SolidColorBrush x:Key="MemoryView.YellowBrush" Color="{StaticResource MemoryView.Yellow}"/>
+    <SolidColorBrush x:Key="MemoryView.OrangeBrush" Color="{StaticResource MemoryView.Orange}"/>
+    <SolidColorBrush x:Key="MemoryView.RedBrush" Color="{StaticResource MemoryView.Red}"/>
+    <SolidColorBrush x:Key="MemoryView.PurpleBrush" Color="{StaticResource MemoryView.Purple}"/>
+    <SolidColorBrush x:Key="MemoryView.BreakpointBrush" Color="{StaticResource MemoryView.Breakpoint}"/>
+    <SolidColorBrush x:Key="MemoryView.InstructionPointerBrush" Color="{StaticResource MemoryView.InstructionPointer}"/>
+    <SolidColorBrush x:Key="MemoryView.BookmarkBrush" Color="{StaticResource MemoryView.Bookmark}"/>
+    <SolidColorBrush x:Key="MemoryView.PatchedBrush" Color="{StaticResource MemoryView.Patched}"/>
+    <SolidColorBrush x:Key="MemoryView.ChangedValueBrush" Color="{StaticResource MemoryView.ChangedValue}"/>
+</ResourceDictionary>

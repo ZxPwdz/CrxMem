@@ -1,0 +1,122 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="MemoryView.Colors.xaml"/>
+        <ResourceDictionary Source="MemoryView.Typography.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style TargetType="Control">
+        <Setter Property="FontFamily" Value="{StaticResource MemoryView.UiFont}"/>
+        <Setter Property="FontSize" Value="{StaticResource MemoryView.UiFontSize}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+    </Style>
+    <Style TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource MemoryView.UiFont}"/>
+        <Setter Property="FontSize" Value="{StaticResource MemoryView.UiFontSize}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+    </Style>
+    <Style TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="9,5"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="2">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource MemoryView.SelectionInactiveBrush}"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/><Setter Property="Opacity" Value="0.62"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource MemoryView.WindowBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource MemoryView.BlueBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="7,4"/>
+        <Style.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{StaticResource MemoryView.FocusBrush}"/></Trigger></Style.Triggers>
+    </Style>
+    <Style TargetType="Menu">
+        <Setter Property="Background" Value="{StaticResource MemoryView.ToolbarBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+    </Style>
+    <Style TargetType="MenuItem">
+        <Setter Property="Background" Value="{StaticResource MemoryView.ToolbarBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="8,4"/>
+    </Style>
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+    </Style>
+    <Style TargetType="TabItem">
+        <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/>
+        <Setter Property="Padding" Value="12,5"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/></Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style TargetType="DataGrid">
+        <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="GridLinesVisibility" Value="Vertical"/>
+        <Setter Property="VerticalGridLinesBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="HeadersVisibility" Value="Column"/>
+        <Setter Property="RowHeight" Value="21"/>
+        <Setter Property="ColumnHeaderHeight" Value="25"/>
+        <Setter Property="CanUserAddRows" Value="False"/>
+        <Setter Property="CanUserDeleteRows" Value="False"/>
+        <Setter Property="IsReadOnly" Value="True"/>
+        <Setter Property="EnableRowVirtualization" Value="True"/>
+        <Setter Property="EnableColumnVirtualization" Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+    </Style>
+    <Style TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource MemoryView.HeaderBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        <Setter Property="Padding" Value="8,3"/>
+    </Style>
+    <Style TargetType="DataGridRow">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style TargetType="DataGridCell">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="7,1"/>
+        <Setter Property="FontFamily" Value="{StaticResource MemoryView.MonoFont}"/>
+        <Setter Property="FontSize" Value="{StaticResource MemoryView.DenseFontSize}"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    </Style>
+    <Style x:Key="MemoryView.PaneHeader" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MemoryView.HeaderBackgroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="9,5"/>
+    </Style>
+    <Style x:Key="MemoryView.Splitter" TargetType="GridSplitter">
+        <Setter Property="Background" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="ShowsPreview" Value="True"/>
+    </Style>
+</ResourceDictionary>

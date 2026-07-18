@@ -1,0 +1,8 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FontFamily x:Key="MemoryView.UiFont">Segoe UI</FontFamily>
+    <FontFamily x:Key="MemoryView.MonoFont">Cascadia Mono, Consolas</FontFamily>
+    <sys:Double x:Key="MemoryView.UiFontSize" xmlns:sys="clr-namespace:System;assembly=System.Runtime">12</sys:Double>
+    <sys:Double x:Key="MemoryView.DenseFontSize" xmlns:sys="clr-namespace:System;assembly=System.Runtime">12</sys:Double>
+    <sys:Double x:Key="MemoryView.StatusFontSize" xmlns:sys="clr-namespace:System;assembly=System.Runtime">11</sys:Double>
+</ResourceDictionary>

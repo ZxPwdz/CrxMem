@@ -161,6 +161,9 @@
                               Click="LiveUpdates_Click"/>
                 </MenuItem>
                 <MenuItem Header="_Tools">
+                    <MenuItem Header="Memory View (_WPF Preview)" Click="MemoryViewWpfPreview_Click"
+                              ToolTip="Read-only WPF process inspection preview"/>
+                    <Separator/>
                     <MenuItem Header="_Lua Engine" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
                     <MenuItem Header="_PE Analysis" Click="PEAnalysis_Click"/>
                     <Separator/>

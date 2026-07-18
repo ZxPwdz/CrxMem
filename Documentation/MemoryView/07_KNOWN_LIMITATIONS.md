@@ -24,7 +24,14 @@
 
 ## New WPF viewer status
 
-The WPF replacement has not yet been implemented. Architecture and migration documents exist; no visual or behavior parity is claimed.
+The read-only WPF preview shell is available from `Tools > Memory View (WPF Preview)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, and hex data.
+
+- The legacy viewer remains the default and the WPF preview is not at feature parity.
+- The disassembly and hex panes use interim virtualized `DataGrid` controls rather than the final custom renderers.
+- Address input is currently limited to absolute hexadecimal and `module+offset`.
+- Debug commands, registers, stack, watches, breakpoints, call stack, memory map, assembly, and patching are disabled rather than simulated.
+- The preview is read-only and does not change target memory or protection.
+- Splitter/window layout persistence is not implemented yet.
 
 ## Explicit nonclaims
 
