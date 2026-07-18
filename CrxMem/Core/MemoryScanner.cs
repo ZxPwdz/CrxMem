@@ -11,7 +11,7 @@ namespace CrxMem.Core
     /// </summary>
     public class MemoryScanner
     {
-        private readonly ProcessAccess _process;
+        private readonly IMemoryAccessor _process;
         private List<ScanResult> _results = new List<ScanResult>();
         private Stack<List<ScanResult>> _scanHistory = new Stack<List<ScanResult>>();
         private CancellationTokenSource? _cancellationTokenSource;
@@ -25,7 +25,7 @@ namespace CrxMem.Core
         public event Action<int, int>? ProgressChanged; // current, total
         public event Action<string>? StatusChanged;
 
-        public MemoryScanner(ProcessAccess process)
+        public MemoryScanner(IMemoryAccessor process)
         {
             _process = process ?? throw new ArgumentNullException(nameof(process));
         }
@@ -261,20 +261,7 @@ namespace CrxMem.Core
         /// </summary>
         private List<MemoryRegion> EnumerateMemoryRegions(IntPtr start, IntPtr end)
         {
-            var regions = new List<MemoryRegion>();
-            IntPtr current = start;
-
-            while (current.ToInt64() < end.ToInt64())
-            {
-                var region = MemoryRegion.Query(_process.Handle, current);
-                if (region == null)
-                    break;
-
-                regions.Add(region);
-                current = new IntPtr(region.BaseAddress.ToInt64() + region.Size);
-            }
-
-            return regions;
+            return _process.EnumerateMemoryRegions(start, end).ToList();
         }
 
         /// <summary>
@@ -333,7 +320,7 @@ namespace CrxMem.Core
         /// Compare a value at offset in buffer against scan criteria
         /// </summary>
         private bool CompareValue(byte[] buffer, int offset, ScanType scanType,
-            ScanValueType valueType, string searchValue, byte[] previousValue = null)
+            ScanValueType valueType, string searchValue, byte[]? previousValue = null)
         {
             switch (valueType)
             {
@@ -357,7 +344,7 @@ namespace CrxMem.Core
         }
 
         private bool CompareNumeric<T>(byte[] buffer, int offset, ScanType scanType,
-            string searchValue, byte[] previousValue) where T : struct, IComparable<T>
+            string searchValue, byte[]? previousValue) where T : struct, IComparable<T>
         {
             T currentValue = ReadValue<T>(buffer, offset);
 
@@ -440,7 +427,7 @@ namespace CrxMem.Core
         }
 
         private bool CompareFloat(byte[] buffer, int offset, ScanType scanType,
-            string searchValue, byte[] previousValue)
+            string searchValue, byte[]? previousValue)
         {
             float currentValue = BitConverter.ToSingle(buffer, offset);
 
@@ -492,7 +479,7 @@ namespace CrxMem.Core
         }
 
         private bool CompareDouble(byte[] buffer, int offset, ScanType scanType,
-            string searchValue, byte[] previousValue)
+            string searchValue, byte[]? previousValue)
         {
             double currentValue = BitConverter.ToDouble(buffer, offset);
 

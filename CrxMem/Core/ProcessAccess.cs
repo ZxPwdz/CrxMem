@@ -8,7 +8,7 @@ namespace CrxMem.Core
     /// <summary>
     /// Handles opening and accessing target process memory
     /// </summary>
-    public class ProcessAccess : IDisposable
+    public class ProcessAccess : IMemoryAccessor, IDisposable
     {
         #region Windows API
         [DllImport("kernel32.dll")]
@@ -646,6 +646,31 @@ namespace CrxMem.Core
         {
             if (Handle == IntPtr.Zero) return new System.Collections.Generic.List<MemoryRegion>();
             return MemoryRegion.EnumerateRegions(Handle);
+        }
+
+        public IReadOnlyList<MemoryRegion> EnumerateMemoryRegions(IntPtr startAddress, IntPtr endAddress)
+        {
+            var regions = new List<MemoryRegion>();
+            if (Handle == IntPtr.Zero || endAddress.ToInt64() <= startAddress.ToInt64())
+                return regions;
+
+            IntPtr current = startAddress;
+            while (current.ToInt64() < endAddress.ToInt64())
+            {
+                MemoryRegion? region = MemoryRegion.Query(Handle, current);
+                if (region == null)
+                    break;
+
+                regions.Add(region);
+
+                long nextAddress = region.BaseAddress.ToInt64() + region.Size;
+                if (nextAddress <= current.ToInt64())
+                    break;
+
+                current = new IntPtr(nextAddress);
+            }
+
+            return regions;
         }
 
         /// <summary>
