@@ -162,6 +162,13 @@ cmake --build . --config Release
 2. Extract to a folder of your choice
 3. Run `CrxMem.exe`
 
+### User settings
+
+CrxMem stores its versioned settings in `%LocalAppData%\CrxMem\settings.json`. On the
+first run after upgrading, existing values under `HKCU\Software\CrxMem` are imported
+when no JSON settings file exists. Invalid JSON is preserved as
+`settings.invalid-<timestamp>.json` and replaced with safe defaults.
+
 ### Optional: Install Kernel Driver
 ```cmd
 sc create CrxShield type= kernel binPath= "C:\path\to\CrxShield.sys"

@@ -830,6 +830,7 @@ namespace CrxMem
 
             // Hotkey Settings - save all hotkeys from ListView
             SaveHotkeysToSettings();
+            SettingsManager.Save();
         }
 
         private void SaveHotkeysToSettings()
