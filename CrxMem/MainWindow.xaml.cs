@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -51,6 +50,7 @@ namespace CrxMem
         private DispatcherTimer? _suspendTimer;
         private DispatcherTimer? _updateTimer;
         private FastProcessWatcher? _fastProcessWatcher;
+        private readonly ITableSerializer _tableSerializer = new JsonTableSerializer();
         private bool _liveUpdatesEnabled = true;
         private HwndSource? _windowSource;
         private readonly HwndSourceHook _windowHook;
@@ -634,30 +634,29 @@ namespace CrxMem
             }
         }
 
-        private void AddAddressToList(IntPtr address, string description, string value, string type, string originalAddressString = "")
+        private AddressEntryItem AddAddressToList(IntPtr address, string description, string value, string type, string originalAddressString = "")
         {
             var (addressDisplay, addressColor) = FormatAddressDisplay(address);
-
-            Dispatcher.Invoke(() =>
+            var entry = new AddressEntryItem
             {
-                addressEntries.Add(new AddressEntryItem
-                {
-                    Frozen = false,
-                    Description = description,
-                    Address = addressDisplay,
-                    Type = type,
-                    Value = value,
-                    AddressForeground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
-                        addressColor.R,
-                        addressColor.G,
-                        addressColor.B)),
-                    AddressPtr = address,
-                    Active = true,
-                    FrozenValue = "",
-                    ShowAsHex = false,
-                    OriginalAddressString = string.IsNullOrEmpty(originalAddressString) ? addressDisplay : originalAddressString
-                });
-            });
+                Frozen = false,
+                Description = description,
+                Address = addressDisplay,
+                Type = type,
+                Value = value,
+                AddressForeground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(
+                    addressColor.R,
+                    addressColor.G,
+                    addressColor.B)),
+                AddressPtr = address,
+                Active = true,
+                FrozenValue = "",
+                ShowAsHex = false,
+                OriginalAddressString = string.IsNullOrEmpty(originalAddressString) ? addressDisplay : originalAddressString
+            };
+
+            Dispatcher.Invoke(() => addressEntries.Add(entry));
+            return entry;
         }
 
         private void AddAddressManually_Click(object sender, RoutedEventArgs e)
@@ -1345,23 +1344,38 @@ namespace CrxMem
         private void SaveTable_Click(object sender, RoutedEventArgs e)
         {
             if (_process == null) return;
-            var sfd = new SaveFileDialog { Filter = "Cheat Table (*.ct)|*.ct", DefaultExt = "ct" };
+            var sfd = new SaveFileDialog
+            {
+                Filter = "CrxMem Table (*.crxct)|*.crxct",
+                DefaultExt = "crxct",
+                AddExtension = true
+            };
             if (sfd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                var table = new CheatTable { ProcessName = _process.Target.ProcessName, Entries = new List<CheatEntry>() };
-                foreach (var entry in addressEntries)
+                try
                 {
-                    table.Entries.Add(new CheatEntry
+                    var table = new CheatTable { ProcessName = _process.Target.ProcessName, Entries = new List<CheatEntry>() };
+                    foreach (var entry in addressEntries)
                     {
-                        Address = !string.IsNullOrEmpty(entry.OriginalAddressString) ? entry.OriginalAddressString : (FormatAddressDisplay(entry.AddressPtr).display),
-                        Description = entry.Description,
-                        Type = entry.Type,
-                        Frozen = entry.Frozen,
-                        FrozenValue = entry.FrozenValue,
-                        ShowAsHex = entry.ShowAsHex
-                    });
+                        table.Entries.Add(new CheatEntry
+                        {
+                            Address = !string.IsNullOrEmpty(entry.OriginalAddressString) ? entry.OriginalAddressString : FormatAddressDisplay(entry.AddressPtr).display,
+                            Description = entry.Description,
+                            Type = entry.Type,
+                            Frozen = entry.Frozen,
+                            FrozenValue = entry.FrozenValue,
+                            Active = entry.Active,
+                            ShowAsHex = entry.ShowAsHex
+                        });
+                    }
+
+                    _tableSerializer.Save(sfd.FileName, table);
+                    txtStatus.Text = $"Saved {table.Entries.Count} addresses";
                 }
-                File.WriteAllText(sfd.FileName, JsonSerializer.Serialize(table, new JsonSerializerOptions { WriteIndented = true }));
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show($"Error saving table: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -1373,16 +1387,14 @@ namespace CrxMem
                 return;
             }
 
-            var ofd = new OpenFileDialog { Filter = "Cheat Table (*.ct)|*.ct" };
+            var ofd = new OpenFileDialog
+            {
+                Filter = "CrxMem Tables (*.crxct;*.ct)|*.crxct;*.ct|CrxMem Table (*.crxct)|*.crxct|Legacy CrxMem JSON (*.ct)|*.ct"
+            };
             if (ofd.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 try {
-                    var table = JsonSerializer.Deserialize<CheatTable>(File.ReadAllText(ofd.FileName));
-                    if (table == null)
-                    {
-                        System.Windows.MessageBox.Show("Failed to parse cheat table file.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
-                    }
+                    CheatTable table = _tableSerializer.Load(ofd.FileName);
 
                     addressEntries.Clear();
                     int loadedCount = 0;
@@ -1391,7 +1403,13 @@ namespace CrxMem
                         IntPtr addr = entry.Address.Contains('+') ? ResolveModuleOffsetAddress(entry.Address) : new IntPtr(Convert.ToInt64(entry.Address, 16));
                         if (addr != IntPtr.Zero)
                         {
-                            AddAddressToList(addr, entry.Description, ReadValueAsString(addr), entry.Type, entry.Address);
+                            AddressEntryItem addedEntry = AddAddressToList(addr, entry.Description, ReadValueAsString(addr), entry.Type, entry.Address);
+                            addedEntry.Active = entry.Active;
+                            addedEntry.Frozen = entry.Frozen;
+                            addedEntry.FrozenValue = entry.FrozenValue;
+                            addedEntry.ShowAsHex = entry.ShowAsHex;
+                            if (addedEntry.ShowAsHex)
+                                addedEntry.Value = FormatValue(addedEntry.Value, addedEntry.Type, showHex: true);
                             loadedCount++;
                         }
                     }

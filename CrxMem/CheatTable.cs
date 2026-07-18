@@ -5,7 +5,11 @@ namespace CrxMem
 {
     public class CheatTable
     {
-        public string Version { get; set; } = "1.0";
+        public const string NativeFormat = "CrxMemTable";
+        public const string CurrentVersion = "2.0";
+
+        public string Format { get; set; } = NativeFormat;
+        public string Version { get; set; } = CurrentVersion;
         public string ProcessName { get; set; } = "";
         public List<CheatEntry> Entries { get; set; } = new();
     }
