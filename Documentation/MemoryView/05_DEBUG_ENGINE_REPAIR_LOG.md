@@ -41,3 +41,10 @@ Entries will be appended when a command obtains a tested implementation path.
 - Added no debugger behavior and made no debugger correctness claims.
 - The WPF preview labels itself `Inspection mode` and keeps Attach, Run, Pause, stepping, breakpoint, register-editing, assembly, and patch commands disabled.
 - The legacy viewer remains available for existing behavior; its known debugger and patching limitations are unchanged.
+
+## Phase 6A state/register foundation — 2026-07-18
+
+- Added explicit debug-session states and a single paused-selected-thread invariant for context access.
+- Added truthful x86/x64 register capture results with initialized native buffers, balanced handles, previous values, and deltas.
+- Context reads reject detached, attaching, running, detaching, exited, and faulted states before opening a thread.
+- No execution command was enabled. Native attach/event continuation remains blocked on a purpose-built integration target and review of the existing `DEBUG_EVENT` interop layout.

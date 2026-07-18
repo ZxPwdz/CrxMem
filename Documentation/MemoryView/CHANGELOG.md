@@ -1,5 +1,29 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 6A debug/thread/register contracts
+
+### Features added or repaired
+
+- Added explicit detached/attaching/running/paused/detaching/exited/faulted debug-session states.
+- Added typed thread descriptors and a `ProcessAccess` thread adapter.
+- Added x86/x64 register snapshot models, previous-value deltas, and a Windows context adapter.
+- Enforced that context capture requires the selected process, a selected thread, and a verified paused debug-session snapshot.
+- Correctly initializes native context buffer arrays and balances every opened thread handle.
+
+### Tests added
+
+- Every non-paused state is rejected, missing selected threads fail the invariant, unavailable processes return no data, and register deltas are deterministic.
+- Release result: 51 tests passed, 0 failed; solution build completed with 0 errors.
+
+### Known issues
+
+- This is the contract/snapshot half of Phase 6. No attached debugger event loop exists yet, so the UI correctly keeps register and execution commands disabled.
+- Register write-back is intentionally absent.
+
+### Next recommended task
+
+Build a purpose-built debugger target and verify native attach/detach/event continuation before connecting these contracts to the WPF command surface.
+
 ## 2026-07-18 — Phase 5 disassembly service and renderer
 
 ### Features added or repaired
