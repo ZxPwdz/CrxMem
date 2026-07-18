@@ -349,19 +349,21 @@
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="31"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <Border Style="{StaticResource MemoryView.PaneHeader}"><TextBlock Text="Assembler / Patch" FontWeight="SemiBold"/></Border>
-                            <StackPanel Grid.Row="1" Margin="10">
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="10">
                                 <TextBlock Text="Address" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
                                 <TextBox Text="{Binding SelectedInstructionAddress, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
                                 <TextBlock Text="Original bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
                                 <TextBox Text="{Binding SelectedInstructionBytes, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
-                                <TextBlock Text="Assembly source" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding AssemblySource, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Height="60" TextWrapping="Wrap" Margin="0,3,0,8"/>
                                 <TextBlock Text="Replacement bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding PatchBytes, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,5"/>
+                                <TextBox x:Name="patchBytesBox" Text="{Binding PatchBytes, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8" ToolTip="Enter hexadecimal bytes directly, for example: 90 90 90"/>
+                                <TextBlock Text="Assembly source (optional)" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
+                                <TextBox Text="{Binding AssemblySource, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Height="45" TextWrapping="Wrap" Margin="0,3,0,8"/>
                                 <CheckBox Content="Explicitly NOP-pad shorter replacements" IsChecked="{Binding PadPatchWithNops}" Margin="0,2,0,8"/>
                                 <TextBlock Text="Single-instruction assembly is bounded and verified. Writes still validate original bytes, restore protection, flush the instruction cache, read back, and roll back on failure."
                                            Foreground="{StaticResource MemoryView.TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
+                            </ScrollViewer>
                             <UniformGrid Grid.Row="2" Columns="5" Margin="8">
                                 <Button x:Name="assembleButton" Content="Assemble" Command="{Binding AssembleCommand}" ToolTip="Assemble one supported instruction into replacement bytes" Margin="2"/>
                                 <Button Content="Apply Patch" Command="{Binding ApplyPatchCommand}" Margin="2"/>

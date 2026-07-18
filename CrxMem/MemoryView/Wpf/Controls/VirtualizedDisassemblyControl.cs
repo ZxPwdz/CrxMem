@@ -34,6 +34,7 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     private int _selectionAnchor = -1;
     private bool _isDraggingSelection;
     private bool _updatingSelection;
+    private int _pendingRevealIndex = -1;
 
     public VirtualizedDisassemblyControl()
     {
@@ -94,6 +95,7 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     protected override Size ArrangeOverride(Size finalSize)
     {
         UpdateScrollInfo(finalSize);
+        RevealPendingSelection();
         return base.ArrangeOverride(finalSize);
     }
 
@@ -370,6 +372,8 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
             control._selectedItems.Clear();
             control._selectedItems.Add(item);
             control._selectionAnchor = control.IndexOf(item);
+            control._pendingRevealIndex = control._selectionAnchor;
+            control.RevealPendingSelection();
         }
         control.InvalidateVisual();
     }
@@ -392,6 +396,17 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     }
 
     private double ClampVertical(double offset) => Math.Clamp(offset, 0, Math.Max(0, _extent.Height - _viewport.Height));
+
+    private void RevealPendingSelection()
+    {
+        if (_pendingRevealIndex < 0 || _pendingRevealIndex >= _items.Count || _viewport.Height <= HeaderHeight) return;
+        double dataViewport = _viewport.Height - HeaderHeight;
+        double centeredOffset = _pendingRevealIndex * RowHeight - (dataViewport - RowHeight) / 2;
+        _verticalOffset = ClampVertical(centeredOffset);
+        _pendingRevealIndex = -1;
+        ScrollOwner?.InvalidateScrollInfo();
+        InvalidateVisual();
+    }
     public bool CanHorizontallyScroll { get; set; }
     public bool CanVerticallyScroll { get; set; } = true;
     public double ExtentHeight => _extent.Height;

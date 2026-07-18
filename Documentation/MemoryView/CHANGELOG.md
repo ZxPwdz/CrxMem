@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Centered disassembly and visible raw patch bytes
+
+- Replaced the forward-only 4 KB/300-row navigation snapshot with a region-bounded 64 KB window and a 12,000-instruction safety cap.
+- Navigation now decodes available instructions before the requested address plus a separate stream beginning exactly at it, then selects and centers the exact target row in the virtualized viewport.
+- Added bulk collection replacement so large decoded windows cause one UI refresh instead of thousands of incremental redraws.
+- Moved editable replacement bytes above the optional assembly source and made the patch editor scroll at constrained pane heights.
+- Direct byte patches continue to validate the selected instruction's original bytes through `IPatchService`.
+
 ## 2026-07-18 — Phase 14 metadata and direct hex editing
 
 - Added WPF comment/bookmark create, edit, toggle, label, and clear workflows backed by fingerprinted module identity plus RVA.

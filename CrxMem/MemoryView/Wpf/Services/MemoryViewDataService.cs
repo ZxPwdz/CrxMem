@@ -13,7 +13,9 @@ public interface IMemoryViewDataService
 
 public sealed class MemoryViewDataService : IMemoryViewDataService
 {
-    private const int DecodeByteCount = 4096;
+    private const int DecodeByteCount = 64 * 1024;
+    private const int PreferredBytesBeforeAddress = 8 * 1024;
+    private const int MaximumDecodedInstructions = 12_000;
     private const int HexRowCount = 24;
     private readonly IProcessMemoryService _memory;
     private readonly IModuleService _modules;
@@ -63,8 +65,9 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
 
         ModuleDescriptor? module = _modules.FindByAddress(address);
         MemoryRegionDescriptor? region = _memory.QueryRegion(address);
+        (ulong decodeAddress, int decodeByteCount) = GetDecodeWindow(address, region);
         ulong alignedHexAddress = address & ~0xFUL;
-        Task<MemoryReadResult> codeTask = _memory.ReadAsync(address, DecodeByteCount, cancellationToken);
+        Task<MemoryReadResult> codeTask = _memory.ReadAsync(decodeAddress, decodeByteCount, cancellationToken);
         Task<MemoryReadResult> hexTask = _memory.ReadAsync(
             alignedHexAddress, 16 * HexRowCount, cancellationToken);
         await Task.WhenAll(codeTask, hexTask);
@@ -75,9 +78,29 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         ThrowForTerminalReadState(codeRead, cancellationToken);
         ThrowForTerminalReadState(hexRead, cancellationToken, allowUnreadable: true);
 
-        IReadOnlyList<DisassemblyPreviewRow> instructions = await _disassembly.DecodeAsync(
-            new DisassemblyRequest(address, codeRead.Data, identity.Is64Bit, module),
-            cancellationToken);
+        int requestedOffset = address >= decodeAddress
+            ? checked((int)Math.Min((ulong)codeRead.Data.Length, address - decodeAddress))
+            : 0;
+        byte[] precedingCode = codeRead.Data[..requestedOffset];
+        byte[] followingCode = codeRead.Data[requestedOffset..];
+        int precedingLimit = MaximumDecodedInstructions - 3_000;
+        IReadOnlyList<DisassemblyPreviewRow> precedingInstructions = precedingCode.Length == 0
+            ? Array.Empty<DisassemblyPreviewRow>()
+            : await _disassembly.DecodeAsync(
+                new DisassemblyRequest(decodeAddress, precedingCode, identity.Is64Bit, module, precedingLimit),
+                cancellationToken);
+        int followingLimit = Math.Max(3_000, MaximumDecodedInstructions - precedingInstructions.Count);
+        IReadOnlyList<DisassemblyPreviewRow> followingInstructions = followingCode.Length == 0
+            ? Array.Empty<DisassemblyPreviewRow>()
+            : await _disassembly.DecodeAsync(
+                new DisassemblyRequest(address, followingCode, identity.Is64Bit, module, followingLimit),
+                cancellationToken);
+        IReadOnlyList<DisassemblyPreviewRow> instructions = precedingInstructions
+            .Where(row => row.RuntimeAddress < address &&
+                (ulong)CountInstructionBytes(row.Bytes) <= address - row.RuntimeAddress)
+            .Concat(followingInstructions)
+            .Take(MaximumDecodedInstructions)
+            .ToArray();
         IReadOnlyList<HexPreviewRow> hexRows = BuildHexRows(
             alignedHexAddress, hexRead.Data, identity.Is64Bit, cancellationToken);
         string moduleName = module?.Name ?? "—";
@@ -90,7 +113,7 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         string readQualifier = codeRead.Status == MemoryReadStatus.Partial ? "partial read · " : string.Empty;
         string status = codeRead.Data.Length == 0
             ? codeRead.Error ?? "Address is unreadable."
-            : $"Inspection mode · {readQualifier}decoded {instructions.Count} rows from {codeRead.Data.Length:N0} bytes";
+            : $"Inspection mode · {readQualifier}decoded {instructions.Count:N0} rows from {codeRead.Data.Length:N0} bytes around 0x{address:X}";
 
         return new MemoryViewSnapshot(
             address,
@@ -106,6 +129,27 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
             hexRows,
             status);
     }
+
+    private static (ulong Address, int ByteCount) GetDecodeWindow(
+        ulong requestedAddress,
+        MemoryRegionDescriptor? region)
+    {
+        ulong lowerBound = region?.BaseAddress ?? 0;
+        ulong upperBound = region == null
+            ? ulong.MaxValue
+            : region.BaseAddress > ulong.MaxValue - region.Size
+                ? ulong.MaxValue
+                : region.BaseAddress + region.Size;
+        ulong availableBefore = requestedAddress >= lowerBound ? requestedAddress - lowerBound : 0;
+        ulong bytesBefore = Math.Min((ulong)PreferredBytesBeforeAddress, availableBefore);
+        ulong start = requestedAddress - bytesBefore;
+        ulong available = upperBound > start ? upperBound - start : 0;
+        int count = checked((int)Math.Min((ulong)DecodeByteCount, available));
+        return (start, Math.Max(1, count));
+    }
+
+    private static int CountInstructionBytes(string bytes) =>
+        bytes.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 
     private static IReadOnlyList<HexPreviewRow> BuildHexRows(
         ulong alignedAddress,

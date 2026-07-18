@@ -145,7 +145,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
-    public ObservableCollection<DisassemblyPreviewRow> Instructions { get; } = new();
+    public RangeObservableCollection<DisassemblyPreviewRow> Instructions { get; } = new();
     public ObservableCollection<HexPreviewRow> HexRows { get; } = new();
     public ObservableCollection<string> RecentExpressions { get; } = new();
     public ObservableCollection<RegisterValue> Registers { get; } = new();
@@ -370,12 +370,13 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (generation != Interlocked.Read(ref _navigationGeneration)) return;
             Apply(snapshot);
+            ulong desiredAddress = selectedAddress ?? address;
+            SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == desiredAddress)
+                ?? Instructions.LastOrDefault(row => row.RuntimeAddress <= desiredAddress)
+                ?? Instructions.FirstOrDefault();
             await RefreshProcessPanelsAsync(cancellationToken);
             await RefreshWatchesAsync();
             AddressExpression = expression;
-            if (selectedAddress.HasValue)
-                SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selectedAddress.Value)
-                    ?? Instructions.FirstOrDefault();
             if (addToHistory)
             {
                 _history.Push(new NavigationEntry(address, expression, SelectedInstruction?.RuntimeAddress));
@@ -412,8 +413,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         Region = snapshot.Region;
         AddressExpression = snapshot.Address.ToString("X");
 
-        Instructions.Clear();
-        foreach (DisassemblyPreviewRow row in snapshot.Instructions) Instructions.Add(row);
+        Instructions.ReplaceAll(snapshot.Instructions);
         ApplyBreakpointMarkers();
         Dictionary<ulong, byte[]> previousHex = HexRows
             .Where(row => row.Data != null)
@@ -430,7 +430,6 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             }
             HexRows.Add(row with { ChangedByteIndices = changed });
         }
-        SelectedInstruction = Instructions.FirstOrDefault();
         Status = snapshot.Status;
         OnPropertyChanged(nameof(SelectedInstructionAddress));
     }

@@ -36,7 +36,9 @@ public sealed class ProcessInspectionServiceTests
         Assert.Equal("entry", snapshot.Instructions[0].Comment);
         Assert.Equal("◆", snapshot.Instructions[0].Marker);
         Assert.Equal("Target.exe", metadata.LastLocation?.ModuleName);
-        Assert.Equal(0x1000UL, metadata.LastLocation?.RelativeVirtualAddress);
+        Assert.Equal(0UL, metadata.LastLocation?.RelativeVirtualAddress);
+        Assert.Equal(0x140000000UL, memory.LastCodeReadAddress);
+        Assert.Equal(64 * 1024, memory.LastCodeReadSize);
     }
 
     [Fact]
@@ -49,6 +51,20 @@ public sealed class ProcessInspectionServiceTests
             () => service.LoadSnapshotAsync(0x140001000, CancellationToken.None));
 
         Assert.Contains("unreadable", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MemoryViewDataService_CentersLargeDecodeWindowBeforeRequestedAddress()
+    {
+        var memory = new FakeProcessMemoryService { ReturnFullCodeWindow = true };
+        var service = new MemoryViewDataService(memory, new FakeModuleService(), new RecordingMetadataService());
+
+        var snapshot = await service.LoadSnapshotAsync(0x140008000, CancellationToken.None);
+
+        Assert.Equal(0x140006000UL, memory.LastCodeReadAddress);
+        Assert.Equal(64 * 1024, memory.LastCodeReadSize);
+        Assert.Contains(snapshot.Instructions, row => row.RuntimeAddress < 0x140008000UL);
+        Assert.Contains(snapshot.Instructions, row => row.RuntimeAddress == 0x140008000UL);
     }
 
     [Theory]
@@ -70,17 +86,26 @@ public sealed class ProcessInspectionServiceTests
     private sealed class FakeProcessMemoryService : IProcessMemoryService
     {
         public MemoryReadStatus CodeStatus { get; init; } = MemoryReadStatus.Partial;
+        public bool ReturnFullCodeWindow { get; init; }
         public ProcessIdentity Identity { get; } = new("Target", 42, true, true);
+        public ulong LastCodeReadAddress { get; private set; }
+        public int LastCodeReadSize { get; private set; }
 
         public Task<MemoryReadResult> ReadAsync(ulong address, int size, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             byte[] data;
             MemoryReadStatus status;
-            if (size == 4096)
+            if (size != 16 * 24)
             {
-                status = CodeStatus;
-                data = status == MemoryReadStatus.Unreadable ? Array.Empty<byte>() : new byte[] { 0x48, 0x89, 0xD8 };
+                LastCodeReadAddress = address;
+                LastCodeReadSize = size;
+                status = ReturnFullCodeWindow ? MemoryReadStatus.Complete : CodeStatus;
+                data = status == MemoryReadStatus.Unreadable
+                    ? Array.Empty<byte>()
+                    : ReturnFullCodeWindow
+                        ? Enumerable.Repeat((byte)0x90, size).ToArray()
+                        : new byte[] { 0x48, 0x89, 0xD8 };
             }
             else
             {

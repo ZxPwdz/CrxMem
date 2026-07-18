@@ -175,6 +175,8 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal(7, disassembly.ContextMenu!.Items.Count);
                 var assembleButton = Assert.IsType<Button>(window.FindName("assembleButton"));
                 Assert.Equal("Assemble", assembleButton.Content);
+                var patchBytesBox = Assert.IsType<TextBox>(window.FindName("patchBytesBox"));
+                Assert.False(patchBytesBox.IsReadOnly);
                 Assert.NotNull(Assert.IsType<MemoryViewViewModel>(window.DataContext).AssembleCommand);
                 window.Close();
 
@@ -203,6 +205,9 @@ public sealed class MemoryViewWpfTests
                 Assert.True(renderer.ExtentHeight > renderer.ViewportHeight);
                 Assert.Equal(15, renderer.CodeFontSize);
                 Assert.Equal(25, renderer.RowHeight);
+                renderer.SelectedItem = renderer.ItemsSource.Cast<DisassemblyPreviewRow>().ElementAt(700);
+                renderer.Arrange(new Rect(0, 0, 900, 300));
+                Assert.True(renderer.VerticalOffset > 0);
 
                 var hexRenderer = new VirtualizedHexDumpControl
                 {

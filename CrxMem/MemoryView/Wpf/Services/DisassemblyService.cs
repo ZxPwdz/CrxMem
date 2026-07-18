@@ -10,7 +10,7 @@ public sealed record DisassemblyRequest(
     byte[] Code,
     bool Is64Bit,
     ModuleDescriptor? Module,
-    int MaximumInstructions = 300);
+    int MaximumInstructions = 12_000);
 
 public interface IDisassemblyService
 {
