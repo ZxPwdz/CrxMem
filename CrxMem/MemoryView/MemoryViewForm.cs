@@ -16,12 +16,13 @@ namespace CrxMem.MemoryView
         private StackViewControl? _stackView;
         private IntPtr _currentAddress;
         private bool _is64Bit;
-        private System.Windows.Forms.Timer _registerUpdateTimer;
+        private System.Windows.Forms.Timer? _registerUpdateTimer;
         private uint _activeThreadId;
 
         public MemoryViewForm(ProcessAccess process, IntPtr startAddress = default)
         {
             InitializeComponent();
+            ConfigureFeatureAvailability();
             _process = process;
             _is64Bit = process?.Is64Bit ?? false;
 
@@ -79,10 +80,10 @@ namespace CrxMem.MemoryView
                 return true;
             }
 
-            // Ctrl+F: Find/Search (works from anywhere in the form)
+            // Ctrl+F: Find an AOB pattern (works from anywhere in the form)
             if (keyData == (Keys.Control | Keys.F))
             {
-                SearchFind_Click(null, EventArgs.Empty);
+                SearchFindPattern_Click(null, EventArgs.Empty);
                 return true;
             }
 
@@ -104,6 +105,54 @@ namespace CrxMem.MemoryView
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void ConfigureFeatureAvailability()
+        {
+            const string plannedFeature = "Planned feature - not available in this release";
+
+            fileOpenMenu.Enabled = false;
+            fileOpenMenu.Text = "&Open Static File... (planned)";
+            fileOpenMenu.ToolTipText = plannedFeature;
+            fileSaveMenu.Enabled = false;
+            fileSaveMenu.Text = "&Save Analysis Database... (planned)";
+            fileSaveMenu.ToolTipText = plannedFeature;
+
+            debugMenu.Enabled = false;
+            debugMenu.Text = "&Debug (planned)";
+            debugMenu.ToolTipText = "Debugger attachment and stepping are not implemented yet";
+
+            // Keep the toolbar focused on actions that currently work.
+            btnOpen.Visible = false;
+            btnSave.Visible = false;
+            toolSeparator1.Visible = false;
+            btnRun.Visible = false;
+            btnPause.Visible = false;
+            btnStop.Visible = false;
+            toolSeparator2.Visible = false;
+            btnStepInto.Visible = false;
+            btnStepOver.Visible = false;
+            btnStepOut.Visible = false;
+            toolSeparator3.Visible = false;
+            btnBreakpoint.Visible = false;
+            toolSeparator4.Visible = false;
+
+            searchFindMenu.Text = "&Find Pattern (AOB)...";
+            searchFindMenu.ToolTipText = "Scan readable process memory for a byte pattern";
+            searchFindPatternMenu.Visible = false;
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            if (_registerUpdateTimer != null)
+            {
+                _registerUpdateTimer.Stop();
+                _registerUpdateTimer.Tick -= RegisterUpdateTimer_Tick;
+                _registerUpdateTimer.Dispose();
+                _registerUpdateTimer = null;
+            }
+
+            base.OnFormClosed(e);
         }
 
         private void MemoryViewForm_Load(object? sender, EventArgs e)
@@ -890,39 +939,7 @@ namespace CrxMem.MemoryView
 
         private void SearchFind_Click(object? sender, EventArgs e)
         {
-            using var findDialog = new Form
-            {
-                Text = "Find",
-                Size = new Size(400, 150),
-                StartPosition = FormStartPosition.CenterParent,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false
-            };
-
-            var lblSearch = new Label { Text = "Search for (hex bytes):", Location = new Point(10, 15), AutoSize = true };
-            var txtSearch = new TextBox { Location = new Point(10, 35), Size = new Size(360, 23) };
-            var btnFind = new Button { Text = "Find Next", Location = new Point(210, 70), Size = new Size(80, 25) };
-            var btnCancel = new Button { Text = "Cancel", Location = new Point(295, 70), Size = new Size(75, 25) };
-
-            btnFind.Click += (s, ev) =>
-            {
-                string pattern = txtSearch.Text.Replace(" ", "").Trim();
-                if (!string.IsNullOrEmpty(pattern))
-                {
-                    lblStatusInfo.Text = $"Searching for: {pattern}...";
-                    // TODO: Implement pattern search
-                    findDialog.DialogResult = DialogResult.OK;
-                }
-            };
-
-            btnCancel.Click += (s, ev) => findDialog.DialogResult = DialogResult.Cancel;
-
-            ThemeManager.ApplyTheme(findDialog);
-            findDialog.Controls.AddRange(new Control[] { lblSearch, txtSearch, btnFind, btnCancel });
-            findDialog.AcceptButton = btnFind;
-            findDialog.CancelButton = btnCancel;
-            findDialog.ShowDialog(this);
+            SearchFindPattern_Click(sender, e);
         }
 
         private void SearchFindReferences_Click(object? sender, EventArgs e)
