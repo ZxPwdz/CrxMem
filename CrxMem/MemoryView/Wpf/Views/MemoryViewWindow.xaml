@@ -1,6 +1,7 @@
 <Window x:Class="CrxMem.MemoryView.Wpf.Views.MemoryViewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:memoryControls="clr-namespace:CrxMem.MemoryView.Wpf.Controls"
         Title="CrxMem Memory View (WPF Preview)"
         Width="1360" Height="800" MinWidth="980" MinHeight="620"
         WindowStartupLocation="CenterOwner"
@@ -139,26 +140,12 @@
                     </StackPanel>
                 </Border>
 
-                <DataGrid Grid.Row="1" ItemsSource="{Binding Instructions}" SelectedItem="{Binding SelectedInstruction}"
-                          AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="" Binding="{Binding Marker}" Width="32">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MemoryView.BookmarkBrush}"/><Setter Property="TextAlignment" Value="Center"/></Style></DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MemoryView.CyanBrush}"/></Style></DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Bytes" Binding="{Binding Bytes}" Width="210">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/></Style></DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Instruction" Binding="{Binding Instruction}" Width="2*">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MemoryView.BlueBrush}"/></Style></DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Comment / Symbol" Binding="{Binding Comment}" Width="*">
-                            <DataGridTextColumn.ElementStyle><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MemoryView.GreenBrush}"/></Style></DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <ScrollViewer Grid.Row="1" CanContentScroll="True"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <memoryControls:VirtualizedDisassemblyControl
+                        ItemsSource="{Binding Instructions}"
+                        SelectedItem="{Binding SelectedInstruction, Mode=TwoWay}"/>
+                </ScrollViewer>
 
                 <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 

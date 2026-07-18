@@ -1,9 +1,11 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using CrxMem.MemoryView.Wpf.Models;
+using CrxMem.MemoryView.Wpf.Controls;
 using CrxMem.MemoryView.Wpf.Services;
 using CrxMem.MemoryView.Wpf.ViewModels;
 using CrxMem.MemoryView.Wpf.Views;
+using System.Windows.Media.Imaging;
 using Xunit;
 
 namespace CrxMem.Tests;
@@ -70,6 +72,20 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal("CrxMem Memory View (WPF Preview)", window.Title);
                 Assert.IsType<MemoryViewViewModel>(window.DataContext);
                 window.Close();
+
+                var renderer = new VirtualizedDisassemblyControl
+                {
+                    ItemsSource = Enumerable.Range(0, 1000)
+                        .Select(index => new DisassemblyPreviewRow(
+                            "", index.ToString("X16"), "90", "nop", "", (ulong)index))
+                        .ToArray()
+                };
+                renderer.Measure(new System.Windows.Size(900, 300));
+                renderer.Arrange(new Rect(0, 0, 900, 300));
+                var bitmap = new RenderTargetBitmap(900, 300, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                bitmap.Render(renderer);
+                Assert.InRange(renderer.LastRenderedRowCount, 1, renderer.VisibleRowCapacity);
+                Assert.True(renderer.ExtentHeight > renderer.ViewportHeight);
             }
             catch (Exception ex)
             {

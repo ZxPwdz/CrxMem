@@ -1,8 +1,6 @@
 using System.Text;
 using CrxMem.Core;
 using CrxMem.MemoryView.Wpf.Models;
-using Iced.Intel;
-using IcedDecoder = Iced.Intel.Decoder;
 
 namespace CrxMem.MemoryView.Wpf.Services;
 
@@ -16,12 +14,12 @@ public interface IMemoryViewDataService
 public sealed class MemoryViewDataService : IMemoryViewDataService
 {
     private const int DecodeByteCount = 4096;
-    private const int MaximumInstructions = 300;
     private const int HexRowCount = 24;
     private readonly IProcessMemoryService _memory;
     private readonly IModuleService _modules;
     private readonly IMemoryMetadataService _metadata;
     private readonly IAddressExpressionService _addresses;
+    private readonly IDisassemblyService _disassembly;
 
     public MemoryViewDataService(ProcessAccess process)
     {
@@ -30,18 +28,21 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         _modules = new ModuleService(process);
         _metadata = new LegacyMemoryMetadataService();
         _addresses = new AddressExpressionService(_memory, _modules);
+        _disassembly = new IcedDisassemblyService(_metadata);
     }
 
     public MemoryViewDataService(
         IProcessMemoryService memory,
         IModuleService modules,
         IMemoryMetadataService metadata,
-        IAddressExpressionService? addresses = null)
+        IAddressExpressionService? addresses = null,
+        IDisassemblyService? disassembly = null)
     {
         _memory = memory ?? throw new ArgumentNullException(nameof(memory));
         _modules = modules ?? throw new ArgumentNullException(nameof(modules));
         _metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         _addresses = addresses ?? new AddressExpressionService(_memory, _modules);
+        _disassembly = disassembly ?? new IcedDisassemblyService(_metadata);
     }
 
     public ulong GetDefaultAddress() => _modules.GetDefaultAddress();
@@ -74,8 +75,8 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         ThrowForTerminalReadState(codeRead, cancellationToken);
         ThrowForTerminalReadState(hexRead, cancellationToken, allowUnreadable: true);
 
-        IReadOnlyList<DisassemblyPreviewRow> instructions = await Task.Run(
-            () => Decode(address, codeRead.Data, module, identity.Is64Bit, cancellationToken),
+        IReadOnlyList<DisassemblyPreviewRow> instructions = await _disassembly.DecodeAsync(
+            new DisassemblyRequest(address, codeRead.Data, identity.Is64Bit, module),
             cancellationToken);
         IReadOnlyList<HexPreviewRow> hexRows = BuildHexRows(
             alignedHexAddress, hexRead.Data, identity.Is64Bit, cancellationToken);
@@ -106,62 +107,6 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
             status);
     }
 
-    private IReadOnlyList<DisassemblyPreviewRow> Decode(
-        ulong address,
-        byte[] code,
-        ModuleDescriptor? module,
-        bool is64Bit,
-        CancellationToken cancellationToken)
-    {
-        var rows = new List<DisassemblyPreviewRow>();
-        if (code.Length == 0) return rows;
-
-        var decoder = IcedDecoder.Create(is64Bit ? 64 : 32, code);
-        decoder.IP = address;
-        var formatter = new NasmFormatter();
-        formatter.Options.HexPrefix = "0x";
-
-        ulong decodeEnd = address + (ulong)code.Length;
-        while (decoder.IP < decodeEnd && rows.Count < MaximumInstructions)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            decoder.Decode(out Instruction instruction);
-            int offset = checked((int)(instruction.IP - address));
-            int length = instruction.IsInvalid ? 1 : Math.Max(1, instruction.Length);
-            if (offset < 0 || offset >= code.Length) break;
-            length = Math.Min(length, code.Length - offset);
-
-            byte[] instructionBytes = code.AsSpan(offset, length).ToArray();
-            string instructionText;
-            if (instruction.IsInvalid)
-            {
-                instructionText = $"db 0x{instructionBytes[0]:X2}";
-            }
-            else
-            {
-                var output = new PlainFormatterOutput();
-                formatter.Format(instruction, output);
-                instructionText = output.ToString();
-            }
-
-            ulong runtimeAddress = instruction.IsInvalid ? address + (ulong)offset : instruction.IP;
-            MemoryLocation location = MemoryLocation.Create(runtimeAddress, module);
-            string comment = _metadata.GetComment(location) ?? ResolveFlowTarget(instruction, module);
-            string marker = _metadata.HasBookmark(location) ? "◆" : string.Empty;
-            rows.Add(new DisassemblyPreviewRow(
-                marker,
-                runtimeAddress.ToString(is64Bit ? "X16" : "X8"),
-                Convert.ToHexString(instructionBytes).Chunk(2).Select(chars => new string(chars)).Aggregate((left, right) => left + " " + right),
-                instructionText,
-                comment,
-                runtimeAddress));
-
-            if (instruction.IsInvalid) decoder.IP = runtimeAddress + 1;
-        }
-
-        return rows;
-    }
-
     private static IReadOnlyList<HexPreviewRow> BuildHexRows(
         ulong alignedAddress,
         byte[] data,
@@ -187,18 +132,6 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         return rows;
     }
 
-    private static string ResolveFlowTarget(Instruction instruction, ModuleDescriptor? module)
-    {
-        ulong target = instruction.FlowControl is FlowControl.Call or FlowControl.UnconditionalBranch or FlowControl.ConditionalBranch
-            ? instruction.NearBranchTarget
-            : instruction.IsIPRelativeMemoryOperand ? instruction.IPRelativeMemoryAddress : 0;
-        if (target == 0 || module == null) return string.Empty;
-
-        return module.Contains(target)
-            ? $"{module.Name}+{target - module.BaseAddress:X}"
-            : $"0x{target:X}";
-    }
-
     private static void ThrowForTerminalReadState(
         MemoryReadResult result,
         CancellationToken cancellationToken,
@@ -222,10 +155,4 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
         return parts.Count == 0 ? $"0x{protection:X}" : string.Join(" / ", parts);
     }
 
-    private sealed class PlainFormatterOutput : FormatterOutput
-    {
-        private readonly StringBuilder _builder = new();
-        public override void Write(string text, FormatterTextKind kind) => _builder.Append(text);
-        public override string ToString() => _builder.ToString();
-    }
 }

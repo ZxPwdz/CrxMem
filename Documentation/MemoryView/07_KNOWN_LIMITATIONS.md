@@ -27,7 +27,8 @@
 The read-only WPF preview shell is available from `Tools > Memory View (WPF Preview)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, and hex data.
 
 - The legacy viewer remains the default and the WPF preview is not at feature parity.
-- The disassembly and hex panes use interim virtualized `DataGrid` controls rather than the final custom renderers.
+- Disassembly uses a bounded custom visible-row renderer. Hex still uses an interim virtualized `DataGrid`.
+- Disassembly breakpoint/current-instruction state is unavailable until a verified debug session exists; branch lanes currently cover visible in-window targets only.
 - Address input supports hexadecimal values, modules, arithmetic, parentheses, and bounded pointer dereferences. Register and symbol names produce explicit unknown-name errors until their providers are connected.
 - Navigation Back/Forward is session-scoped; recent expression text and basic pane/window layout persist locally.
 - Process reads report partial/unreadable/unavailable states through typed services.

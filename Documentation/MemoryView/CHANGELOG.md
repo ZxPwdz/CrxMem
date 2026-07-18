@@ -1,5 +1,30 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 5 disassembly service and renderer
+
+### Features added or repaired
+
+- Extracted bounded, cancellable Iced decoding behind `IDisassemblyService`.
+- Added immutable syntax-token and branch-target data to disassembly rows.
+- Replaced the interim disassembly DataGrid with a custom `IScrollInfo` renderer that draws only visible rows.
+- Added keyboard selection, paging, Home/End, Ctrl+C, mouse selection/wheel navigation, syntax colors, bookmark gutter markers, and visible branch-flow lines.
+- Kept decoding capped at 300 instructions per snapshot and invalid bytes advancing safely as `db` rows.
+
+### Tests added
+
+- x64 tokenization, branch targets, invalid trailing bytes, decode bounds, cancellation, and a 1,000-row render virtualization smoke test.
+- Release result: 42 tests passed, 0 failed; solution build completed with 0 errors.
+
+### Known issues
+
+- Breakpoint and current-instruction markers await verified debugger state.
+- The renderer uses fixed initial column geometry; interactive resizing and persisted column widths remain deferred.
+- Branch-flow lanes are intentionally simple and show only targets inside the currently rendered rows.
+
+### Next recommended task
+
+Phase 6: establish debug-session/thread/register state contracts and expose only verified paused snapshots.
+
 ## 2026-07-18 — Phase 4 expression navigation and layout
 
 ### Features added or repaired
