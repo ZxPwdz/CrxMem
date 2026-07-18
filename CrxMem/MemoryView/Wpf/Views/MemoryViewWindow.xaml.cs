@@ -13,19 +13,29 @@ public partial class MemoryViewWindow : Window
     private readonly IMemoryViewLayoutStore _layoutStore;
 
     public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default)
-        : this(new MemoryViewDataService(process), new MemoryViewLayoutStore(), startAddress)
+        : this(
+            new MemoryViewDataService(process),
+            new MemoryViewLayoutStore(),
+            startAddress,
+            new NativeDebugSessionService(process),
+            new WindowsRegisterService(process))
     {
     }
 
     public MemoryViewWindow(
         IMemoryViewDataService dataService,
         IMemoryViewLayoutStore layoutStore,
-        IntPtr startAddress = default)
+        IntPtr startAddress = default,
+        IDebugSessionService? debugSession = null,
+        IRegisterService? registerService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
         _layoutStore = layoutStore ?? throw new ArgumentNullException(nameof(layoutStore));
-        _viewModel = new MemoryViewViewModel(dataService ?? throw new ArgumentNullException(nameof(dataService)));
+        _viewModel = new MemoryViewViewModel(
+            dataService ?? throw new ArgumentNullException(nameof(dataService)),
+            debugSession: debugSession,
+            registerService: registerService);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;

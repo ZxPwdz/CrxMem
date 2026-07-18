@@ -1,5 +1,31 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 6B native debug session and registers UI
+
+### Features added or repaired
+
+- Added a dedicated `WaitForDebugEvent` / `ContinueDebugEvent` loop separate from `DebugMonitor`.
+- Implemented attach, non-destructive detach, explicit debugger break, resume, process-exit state, pending-event ownership, and kill-on-exit disablement.
+- Corrected the 64-bit `DEBUG_EVENT` union alignment and added bounded queued-event draining for reliable detach.
+- Connected Attach, Detach, Pause, and Run commands to the WPF toolbar and Debug menu.
+- Connected verified paused-thread x86/x64 register snapshots, flags, changed-value highlighting, and RIP selection to the register pane.
+- Added the isolated `CrxMem.DebugTarget` executable for native integration testing.
+
+### Tests added
+
+- Fake-native event sequencing, attach failure, pending-event continuation, debug view-model/register synchronization, and isolated real Windows attach/pause/resume/detach.
+- The native detach transaction was repeated five consecutive times after its queued-event repair.
+- Release result: 55 default tests passed, 0 failed; the opt-in native integration test passed.
+
+### Known issues
+
+- Step Into/Over/Out, run-to-cursor, software/hardware breakpoints, exception policy UI, and register editing remain disabled.
+- Native integration is opt-in through `CRXMEM_RUN_DEBUG_TESTS=1` because it exercises Windows debugging APIs.
+
+### Next recommended task
+
+Phase 7: implement the page-backed virtualized hex view, selected-thread stack, and expression-based watch tool before enabling memory writes.
+
 ## 2026-07-18 — Phase 6A debug/thread/register contracts
 
 ### Features added or repaired

@@ -48,3 +48,13 @@ Entries will be appended when a command obtains a tested implementation path.
 - Added truthful x86/x64 register capture results with initialized native buffers, balanced handles, previous values, and deltas.
 - Context reads reject detached, attaching, running, detaching, exited, and faulted states before opening a thread.
 - No execution command was enabled. Native attach/event continuation remains blocked on a purpose-built integration target and review of the existing `DEBUG_EVENT` interop layout.
+
+## Phase 6B native debug session — 2026-07-18
+
+- Added a debugger-owned native event thread with explicit pending-event continuation.
+- `DebugSetProcessKillOnExit(false)` is applied immediately after attach.
+- Attach, explicit break/pause, resume, process exit, and detach were verified against `CrxMem.DebugTarget`.
+- Corrected the 64-bit `DEBUG_EVENT` union offset from 12 to 16 bytes.
+- Detach now continues the held event, drains queued startup/debug events to a bounded quiet point, and retries transient access-denied results before failing visibly.
+- Registers are captured only while a breakpoint/single-step event is held for the selected thread.
+- Stepping and breakpoint mutation remain disabled pending their transaction services.

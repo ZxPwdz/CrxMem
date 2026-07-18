@@ -11,9 +11,16 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IMemoryViewDataService _dataService;
     private readonly INavigationHistoryService _history;
+    private readonly IDebugSessionService? _debugSession;
+    private readonly IRegisterService? _registerService;
+    private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
     private readonly AsyncRelayCommand _forwardCommand;
+    private readonly AsyncRelayCommand _attachCommand;
+    private readonly AsyncRelayCommand _detachCommand;
+    private readonly AsyncRelayCommand _pauseCommand;
+    private readonly AsyncRelayCommand _resumeCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -28,26 +35,49 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _protection = "—";
     private string _region = "—";
     private DisassemblyPreviewRow? _selectedInstruction;
+    private string _debugStateText = "Inspection only";
+    private string _debugStopReason = "Debugger detached";
+    private bool _hasRegisterSnapshot;
+    private string _flagsText = "—";
 
     public MemoryViewViewModel(
         IMemoryViewDataService dataService,
-        INavigationHistoryService? history = null)
+        INavigationHistoryService? history = null,
+        IDebugSessionService? debugSession = null,
+        IRegisterService? registerService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
+        _debugSession = debugSession;
+        _registerService = registerService;
+        _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
         _backCommand = new AsyncRelayCommand(GoBackAsync, () => !IsBusy && _history.CanGoBack);
         _forwardCommand = new AsyncRelayCommand(GoForwardAsync, () => !IsBusy && _history.CanGoForward);
+        _attachCommand = new AsyncRelayCommand(AttachDebuggerAsync,
+            () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Detached);
+        _detachCommand = new AsyncRelayCommand(DetachDebuggerAsync,
+            () => !IsBusy && _debugSession?.Snapshot.State is not null and not DebugSessionState.Detached);
+        _pauseCommand = new AsyncRelayCommand(PauseDebuggerAsync,
+            () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Running);
+        _resumeCommand = new AsyncRelayCommand(ResumeDebuggerAsync,
+            () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Paused);
+        if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
     public ObservableCollection<DisassemblyPreviewRow> Instructions { get; } = new();
     public ObservableCollection<HexPreviewRow> HexRows { get; } = new();
     public ObservableCollection<string> RecentExpressions { get; } = new();
+    public ObservableCollection<RegisterValue> Registers { get; } = new();
     public ICommand NavigateCommand => _navigateCommand;
     public AsyncRelayCommand RefreshCommand { get; }
     public ICommand BackCommand => _backCommand;
     public ICommand ForwardCommand => _forwardCommand;
+    public ICommand AttachCommand => _attachCommand;
+    public ICommand DetachCommand => _detachCommand;
+    public ICommand PauseCommand => _pauseCommand;
+    public ICommand ResumeCommand => _resumeCommand;
 
     public string AddressExpression
     {
@@ -64,6 +94,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public string Offset { get => _offset; private set => SetField(ref _offset, value); }
     public string Protection { get => _protection; private set => SetField(ref _protection, value); }
     public string Region { get => _region; private set => SetField(ref _region, value); }
+    public string DebugStateText { get => _debugStateText; private set => SetField(ref _debugStateText, value); }
+    public string DebugStopReason { get => _debugStopReason; private set => SetField(ref _debugStopReason, value); }
+    public string FlagsText { get => _flagsText; private set => SetField(ref _flagsText, value); }
+    public bool HasRegisterSnapshot { get => _hasRegisterSnapshot; private set => SetField(ref _hasRegisterSnapshot, value); }
 
     public bool IsBusy
     {
@@ -75,6 +109,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             RefreshCommand.RaiseCanExecuteChanged();
             _backCommand.RaiseCanExecuteChanged();
             _forwardCommand.RaiseCanExecuteChanged();
+            RaiseDebugCanExecuteChanged();
         }
     }
 
@@ -223,6 +258,112 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _navigationCancellation?.Cancel();
         _navigationCancellation?.Dispose();
         _navigationCancellation = null;
+        if (_debugSession != null)
+        {
+            _debugSession.StateChanged -= DebugSession_StateChanged;
+            if (_debugSession is IDisposable disposable) disposable.Dispose();
+        }
+    }
+
+    private async Task AttachDebuggerAsync()
+    {
+        if (_debugSession == null) return;
+        try
+        {
+            Status = "Attaching debugger…";
+            await _debugSession.AttachAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Status = $"Debugger attach failed: {ex.Message}";
+        }
+        RaiseDebugCanExecuteChanged();
+    }
+
+    private async Task DetachDebuggerAsync()
+    {
+        if (_debugSession == null) return;
+        try
+        {
+            Status = "Detaching debugger…";
+            await _debugSession.DetachAsync(CancellationToken.None);
+            Registers.Clear();
+            HasRegisterSnapshot = false;
+        }
+        catch (Exception ex)
+        {
+            Status = $"Debugger detach failed: {ex.Message}";
+        }
+        RaiseDebugCanExecuteChanged();
+    }
+
+    private async Task PauseDebuggerAsync()
+    {
+        if (_debugSession == null) return;
+        try { await _debugSession.PauseAsync(CancellationToken.None); }
+        catch (Exception ex) { Status = $"Pause failed: {ex.Message}"; }
+        RaiseDebugCanExecuteChanged();
+    }
+
+    private async Task ResumeDebuggerAsync()
+    {
+        if (_debugSession == null) return;
+        try { await _debugSession.ResumeAsync(CancellationToken.None); }
+        catch (Exception ex) { Status = $"Resume failed: {ex.Message}"; }
+        RaiseDebugCanExecuteChanged();
+    }
+
+    private void DebugSession_StateChanged(object? sender, DebugSessionSnapshot snapshot)
+    {
+        void Apply() => _ = ApplyDebugSnapshotAsync(snapshot);
+        if (_uiContext != null) _uiContext.Post(_ => Apply(), null);
+        else Apply();
+    }
+
+    private async Task ApplyDebugSnapshotAsync(DebugSessionSnapshot snapshot)
+    {
+        DebugStateText = snapshot.State.ToString();
+        DebugStopReason = snapshot.StopReason ?? snapshot.Error ??
+            (snapshot.State == DebugSessionState.Running ? "Target running" : "Debugger detached");
+        Status = snapshot.Error ?? $"Debugger: {snapshot.State}";
+        RaiseDebugCanExecuteChanged();
+
+        if (!snapshot.CanReadThreadContext || _registerService == null) return;
+        RegisterSnapshot? previous = HasRegisterSnapshot && Registers.Count > 0
+            ? new RegisterSnapshot(
+                snapshot.SelectedThreadId!.Value,
+                Architecture == "x64",
+                Registers.ToArray(),
+                Registers.FirstOrDefault(value => value.Name is "RIP" or "EIP")?.Value ?? 0,
+                Registers.FirstOrDefault(value => value.Name is "RSP" or "ESP")?.Value ?? 0,
+                0,
+                DateTimeOffset.UtcNow)
+            : null;
+        RegisterCaptureResult result = await _registerService.CaptureAsync(snapshot, previous, CancellationToken.None);
+        if (_debugSession?.Snapshot.State != DebugSessionState.Paused ||
+            _debugSession.Snapshot.SelectedThreadId != snapshot.SelectedThreadId) return;
+        if (!result.IsAvailable || result.Snapshot == null)
+        {
+            Registers.Clear();
+            HasRegisterSnapshot = false;
+            Status = result.Error ?? "Registers unavailable.";
+            return;
+        }
+
+        Registers.Clear();
+        foreach (RegisterValue register in result.Snapshot.Registers) Registers.Add(register);
+        FlagsText = $"0x{result.Snapshot.Flags:X8}";
+        HasRegisterSnapshot = true;
+        SelectedInstruction = Instructions.FirstOrDefault(row =>
+            row.RuntimeAddress == result.Snapshot.InstructionPointer) ?? SelectedInstruction;
+    }
+
+    private void RaiseDebugCanExecuteChanged()
+    {
+        _attachCommand.RaiseCanExecuteChanged();
+        _detachCommand.RaiseCanExecuteChanged();
+        _pauseCommand.RaiseCanExecuteChanged();
+        _resumeCommand.RaiseCanExecuteChanged();
     }
 
     public void LoadRecentExpressions(IEnumerable<string> expressions)

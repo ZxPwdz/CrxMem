@@ -59,7 +59,15 @@
         <Menu Grid.Row="0" Padding="5,0">
             <MenuItem Header="_File"><MenuItem Header="_Close" Click="Close_Click" InputGestureText="Alt+F4"/></MenuItem>
             <MenuItem Header="_View"><MenuItem Header="_Refresh" Command="{Binding RefreshCommand}" InputGestureText="F5"/></MenuItem>
-            <MenuItem Header="_Debug" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Requires the future attached debug-session service"/>
+            <MenuItem Header="_Debug">
+                <MenuItem Header="_Attach" Command="{Binding AttachCommand}"/>
+                <MenuItem Header="_Detach" Command="{Binding DetachCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Pause" Command="{Binding PauseCommand}"/>
+                <MenuItem Header="_Resume" Command="{Binding ResumeCommand}"/>
+                <Separator/>
+                <MenuItem Header="Stepping unavailable" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Step commands require breakpoint transactions and trap-flag tests"/>
+            </MenuItem>
             <MenuItem Header="_Search"><MenuItem Header="_Go to Address" Click="FocusAddress_Click" InputGestureText="Ctrl+G"/></MenuItem>
             <MenuItem Header="_Memory" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Memory mutation is disabled in the WPF preview"/>
             <MenuItem Header="_Bookmarks" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Bookmark migration arrives with the metadata service"/>
@@ -73,10 +81,11 @@
             <DockPanel Margin="8,5">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Content="Open Process" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Use the main CrxMem window to select a process"/>
-                    <Button Content="Attach" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Attached debugger service is not implemented"/>
+                    <Button Content="Attach" Style="{StaticResource ToolbarButton}" Command="{Binding AttachCommand}" ToolTip="Attach the verified native debug session"/>
+                    <Button Content="Detach" Style="{StaticResource ToolbarButton}" Command="{Binding DetachCommand}" ToolTip="Continue pending events and detach without terminating the target"/>
                     <Separator Margin="6,0"/>
-                    <Button Content="❚❚ Pause" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
-                    <Button Content="▶ Run" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
+                    <Button Content="❚❚ Pause" Style="{StaticResource ToolbarButton}" Command="{Binding PauseCommand}"/>
+                    <Button Content="▶ Run" Style="{StaticResource ToolbarButton}" Command="{Binding ResumeCommand}"/>
                     <Button Content="Step Into" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
                     <Button Content="Step Over" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
                     <Button Content="Step Out" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
@@ -198,13 +207,41 @@
                 <Grid.RowDefinitions><RowDefinition x:Name="registerPanelRow" Height="3*"/><RowDefinition Height="5"/><RowDefinition Height="2*"/></Grid.RowDefinitions>
                 <Border Grid.Row="0" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="31"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <Border Style="{StaticResource MemoryView.PaneHeader}"><DockPanel><TextBlock Text="Registers" FontWeight="SemiBold"/><TextBlock Text="Unavailable" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{StaticResource MemoryView.TextMutedBrush}"/></DockPanel></Border>
-                        <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="24">
-                            <TextBlock Text="Registers require a paused debugger session" HorizontalAlignment="Center" Foreground="{StaticResource MemoryView.TextSecondaryBrush}" FontWeight="SemiBold"/>
-                            <TextBlock Text="The WPF preview will not display the legacy viewer's sample values. Register snapshots and changed-value highlighting arrive after the thread/register service is verified."
-                                       TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MemoryView.TextMutedBrush}" Margin="0,8,0,0"/>
-                        </StackPanel>
+                        <Grid.RowDefinitions><RowDefinition Height="31"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Border Style="{StaticResource MemoryView.PaneHeader}"><DockPanel><TextBlock Text="Registers" FontWeight="SemiBold"/><TextBlock Text="{Binding DebugStateText}" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{StaticResource MemoryView.TextMutedBrush}"/></DockPanel></Border>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Registers}" Margin="10,5">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Height="20">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="45"/><ColumnDefinition Width="*"/><ColumnDefinition Width="65"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource MemoryView.TextSecondaryBrush}" FontFamily="{StaticResource MemoryView.MonoFont}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat={}{0:X16}}" FontFamily="{StaticResource MemoryView.MonoFont}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+                                                            <Style.Triggers><DataTrigger Binding="{Binding HasChanged}" Value="True"><Setter Property="Foreground" Value="{StaticResource MemoryView.RedBrush}"/><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger></Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="2" Text="{Binding SignedDelta, StringFormat={}{0:+#;-#;0}}" HorizontalAlignment="Right" Foreground="{StaticResource MemoryView.TextMutedBrush}" FontFamily="{StaticResource MemoryView.MonoFont}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <StackPanel VerticalAlignment="Center" Margin="24">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasRegisterSnapshot}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Registers require a paused debugger session" HorizontalAlignment="Center" Foreground="{StaticResource MemoryView.TextSecondaryBrush}" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding DebugStopReason}" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MemoryView.TextMutedBrush}" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                        <Border Grid.Row="2" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="0,1,0,0" Padding="10,5">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="RFLAGS  " Foreground="{StaticResource MemoryView.TextMutedBrush}"/><TextBlock Text="{Binding FlagsText}" FontFamily="{StaticResource MemoryView.MonoFont}"/></StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
                 <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>

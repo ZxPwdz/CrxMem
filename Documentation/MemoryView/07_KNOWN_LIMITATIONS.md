@@ -33,8 +33,9 @@ The read-only WPF preview shell is available from `Tools > Memory View (WPF Prev
 - Navigation Back/Forward is session-scoped; recent expression text and basic pane/window layout persist locally.
 - Process reads report partial/unreadable/unavailable states through typed services.
 - Metadata is represented as module plus RVA at the WPF service boundary, while the compatibility backend still reads legacy runtime-address storage.
-- Debug commands, registers, stack, watches, breakpoints, call stack, memory map, assembly, and patching are disabled rather than simulated.
-- Thread/register service contracts now exist, but no native debug event loop supplies a verified paused snapshot yet; therefore the register pane remains unavailable.
+- Attach, Detach, Pause, Resume, and paused-thread registers are connected to a verified native debug session. Stack, watches, breakpoints, call stack, memory map, assembly, patching, and stepping remain disabled rather than simulated.
+- Register editing is intentionally unavailable until verified write-back is implemented.
+- The native debug integration test is opt-in and currently validated with a 64-bit debugger process on Windows.
 - The preview is read-only and does not change target memory or protection.
 - Basic splitter and window layout persistence is implemented; columns, selected tabs, and pane visibility remain deferred.
 

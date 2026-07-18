@@ -10,6 +10,8 @@
 
 Kernel-driver and injected-VEH tests are isolated, opt-in, and never part of the default managed CI run.
 
+The native attached-debugger integration test uses the repository-owned `CrxMem.DebugTarget` and is enabled with `CRXMEM_RUN_DEBUG_TESTS=1`. It must never select an unrelated process.
+
 ## Disassembly
 
 - x86 and x64 decode windows;
