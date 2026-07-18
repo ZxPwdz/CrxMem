@@ -16,6 +16,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IStackService? _stackService;
     private readonly IWatchService? _watchService;
     private readonly IPatchService? _patchService;
+    private readonly IBreakpointService? _breakpointService;
+    private readonly IDebugExecutionService? _executionService;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -29,6 +31,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _nopInstructionCommand;
     private readonly AsyncRelayCommand _undoPatchCommand;
     private readonly AsyncRelayCommand _redoPatchCommand;
+    private readonly AsyncRelayCommand _toggleBreakpointCommand;
+    private readonly AsyncRelayCommand _stepIntoCommand;
+    private readonly AsyncRelayCommand _stepOverCommand;
+    private readonly AsyncRelayCommand _stepOutCommand;
+    private readonly AsyncRelayCommand _runToCursorCommand;
+    private readonly AsyncRelayCommand _runUntilReturnCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -60,7 +68,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IRegisterService? registerService = null,
         IStackService? stackService = null,
         IWatchService? watchService = null,
-        IPatchService? patchService = null)
+        IPatchService? patchService = null,
+        IBreakpointService? breakpointService = null,
+        IDebugExecutionService? executionService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
@@ -69,6 +79,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _stackService = stackService;
         _watchService = watchService;
         _patchService = patchService;
+        _breakpointService = breakpointService;
+        _executionService = executionService;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
@@ -90,6 +102,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             () => !IsBusy && _patchService?.CanUndo == true);
         _redoPatchCommand = new AsyncRelayCommand(RedoPatchAsync,
             () => !IsBusy && _patchService?.CanRedo == true);
+        _toggleBreakpointCommand = new AsyncRelayCommand(ToggleBreakpointAsync, CanUsePausedExecutionCommand);
+        _stepIntoCommand = new AsyncRelayCommand(StepIntoAsync, CanUsePausedExecutionCommand);
+        _stepOverCommand = new AsyncRelayCommand(StepOverAsync, CanUsePausedExecutionCommand);
+        _stepOutCommand = new AsyncRelayCommand(StepOutAsync, CanUsePausedExecutionCommand);
+        _runToCursorCommand = new AsyncRelayCommand(RunToCursorAsync, CanUsePausedExecutionCommand);
+        _runUntilReturnCommand = new AsyncRelayCommand(RunUntilReturnAsync, CanUsePausedExecutionCommand);
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
@@ -112,6 +130,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand NopInstructionCommand => _nopInstructionCommand;
     public ICommand UndoPatchCommand => _undoPatchCommand;
     public ICommand RedoPatchCommand => _redoPatchCommand;
+    public ICommand ToggleBreakpointCommand => _toggleBreakpointCommand;
+    public ICommand StepIntoCommand => _stepIntoCommand;
+    public ICommand StepOverCommand => _stepOverCommand;
+    public ICommand StepOutCommand => _stepOutCommand;
+    public ICommand RunToCursorCommand => _runToCursorCommand;
+    public ICommand RunUntilReturnCommand => _runUntilReturnCommand;
 
     public string AddressExpression
     {
@@ -162,6 +186,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             _forwardCommand.RaiseCanExecuteChanged();
             RaiseDebugCanExecuteChanged();
             RaisePatchCanExecuteChanged();
+            RaiseExecutionCanExecuteChanged();
         }
     }
 
@@ -177,6 +202,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(SelectedInstructionComment));
             PatchBytes = value?.Bytes ?? string.Empty;
             RaisePatchCanExecuteChanged();
+            RaiseExecutionCanExecuteChanged();
         }
     }
 
@@ -302,6 +328,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 
         Instructions.Clear();
         foreach (DisassemblyPreviewRow row in snapshot.Instructions) Instructions.Add(row);
+        ApplyBreakpointMarkers();
         Dictionary<ulong, byte[]> previousHex = HexRows
             .Where(row => row.Data != null)
             .ToDictionary(row => row.RuntimeAddress, row => row.Data!);
@@ -348,6 +375,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             Status = $"Debugger attach failed: {ex.Message}";
         }
         RaiseDebugCanExecuteChanged();
+        RaiseExecutionCanExecuteChanged();
     }
 
     private async Task DetachDebuggerAsync()
@@ -387,9 +415,15 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 
     private void DebugSession_StateChanged(object? sender, DebugSessionSnapshot snapshot)
     {
-        void Apply() => _ = ApplyDebugSnapshotAsync(snapshot);
+        void Apply() => _ = ApplyDebugSnapshotSafelyAsync(snapshot);
         if (_uiContext != null) _uiContext.Post(_ => Apply(), null);
         else Apply();
+    }
+
+    private async Task ApplyDebugSnapshotSafelyAsync(DebugSessionSnapshot snapshot)
+    {
+        try { await ApplyDebugSnapshotAsync(snapshot); }
+        catch (Exception ex) { Status = $"Debug snapshot failed: {ex.Message}"; }
     }
 
     private async Task ApplyDebugSnapshotAsync(DebugSessionSnapshot snapshot)
@@ -547,6 +581,97 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _nopInstructionCommand.RaiseCanExecuteChanged();
         _undoPatchCommand.RaiseCanExecuteChanged();
         _redoPatchCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool CanUsePausedExecutionCommand() =>
+        !IsBusy && SelectedInstruction != null && _executionService != null &&
+        _debugSession?.Snapshot.State == DebugSessionState.Paused;
+
+    private async Task ToggleBreakpointAsync()
+    {
+        if (_breakpointService == null || SelectedInstruction == null) return;
+        try
+        {
+            await _breakpointService.ToggleAsync(
+                SelectedInstruction.RuntimeAddress,
+                ModuleName == "—" ? null : ModuleName,
+                _moduleBaseAddress != 0 && SelectedInstruction.RuntimeAddress >= _moduleBaseAddress
+                    ? SelectedInstruction.RuntimeAddress - _moduleBaseAddress
+                    : null);
+            ApplyBreakpointMarkers();
+            Status = _breakpointService.HasEnabledBreakpoint(SelectedInstruction.RuntimeAddress)
+                ? $"Breakpoint enabled at 0x{SelectedInstruction.RuntimeAddress:X}."
+                : $"Breakpoint disabled at 0x{SelectedInstruction.RuntimeAddress:X}.";
+        }
+        catch (Exception ex) { Status = $"Breakpoint failed: {ex.Message}"; }
+    }
+
+    private Task StepIntoAsync() => ExecuteDebugCommandAsync(
+        token => _executionService!.StepIntoAsync(token), "Step Into");
+
+    private Task StepOverAsync()
+    {
+        if (SelectedInstruction == null || !TryParseBytes(SelectedInstruction.Bytes, out byte[] bytes))
+            return Task.CompletedTask;
+        bool isCall = SelectedInstruction.Instruction.TrimStart()
+            .StartsWith("call", StringComparison.OrdinalIgnoreCase);
+        return ExecuteDebugCommandAsync(
+            token => _executionService!.StepOverAsync(
+                SelectedInstruction.RuntimeAddress, bytes.Length, isCall, token),
+            "Step Over");
+    }
+
+    private Task StepOutAsync() => ExecuteDebugCommandAsync(
+        token => _executionService!.StepOutAsync(token), "Step Out");
+
+    private Task RunToCursorAsync()
+    {
+        if (SelectedInstruction == null) return Task.CompletedTask;
+        return ExecuteDebugCommandAsync(
+            token => _executionService!.RunToAsync(SelectedInstruction.RuntimeAddress, token),
+            "Run to Cursor");
+    }
+
+    private Task RunUntilReturnAsync() => ExecuteDebugCommandAsync(
+        token => _executionService!.RunUntilReturnAsync(token), "Run Until Return");
+
+    private async Task ExecuteDebugCommandAsync(
+        Func<CancellationToken, Task> command,
+        string name)
+    {
+        try
+        {
+            Status = $"{name}…";
+            await command(CancellationToken.None);
+        }
+        catch (Exception ex) { Status = $"{name} failed: {ex.Message}"; }
+        RaiseExecutionCanExecuteChanged();
+    }
+
+    private void ApplyBreakpointMarkers()
+    {
+        if (_breakpointService == null) return;
+        DisassemblyPreviewRow? selected = SelectedInstruction;
+        for (int index = 0; index < Instructions.Count; index++)
+        {
+            DisassemblyPreviewRow row = Instructions[index];
+            string marker = _breakpointService.HasEnabledBreakpoint(row.RuntimeAddress) ? "●" :
+                row.Marker == "●" ? string.Empty : row.Marker;
+            if (marker != row.Marker) Instructions[index] = row with { Marker = marker };
+        }
+        if (selected != null)
+            SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selected.RuntimeAddress)
+                ?? SelectedInstruction;
+    }
+
+    private void RaiseExecutionCanExecuteChanged()
+    {
+        _toggleBreakpointCommand.RaiseCanExecuteChanged();
+        _stepIntoCommand.RaiseCanExecuteChanged();
+        _stepOverCommand.RaiseCanExecuteChanged();
+        _stepOutCommand.RaiseCanExecuteChanged();
+        _runToCursorCommand.RaiseCanExecuteChanged();
+        _runUntilReturnCommand.RaiseCanExecuteChanged();
     }
 
     private void RaiseDebugCanExecuteChanged()

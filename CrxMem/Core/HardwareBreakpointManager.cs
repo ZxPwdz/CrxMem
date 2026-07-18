@@ -78,6 +78,22 @@ namespace CrxMem.Core
         }
 
         /// <summary>
+        /// Applies an already-owned hardware breakpoint to one thread. Debug-event callers
+        /// pass false because a CREATE_THREAD_DEBUG_EVENT already holds the new thread.
+        /// </summary>
+        public bool ApplyBreakpointToThread(
+            uint threadId,
+            int slot,
+            ulong address,
+            BreakpointType type,
+            BreakpointSize size,
+            bool suspendThread = true) =>
+            SetBreakpointOnThread(threadId, slot, address, type, size, suspendThread);
+
+        public bool ClearBreakpointFromThread(uint threadId, int slot, bool suspendThread = true) =>
+            ClearBreakpointOnThread(threadId, slot, suspendThread);
+
+        /// <summary>
         /// Clears a hardware breakpoint from all threads
         /// </summary>
         public bool ClearBreakpoint(int slot)
@@ -99,6 +115,22 @@ namespace CrxMem.Core
                 }
             }
 
+            _usedSlots[slot] = false;
+            return success;
+        }
+
+        /// <summary>
+        /// Clears a slot while a native debug event already holds every target thread.
+        /// This avoids changing suspend counts owned by the debugger.
+        /// </summary>
+        public bool ClearBreakpointWhileDebugPaused(int slot)
+        {
+            if (slot < 0 || slot > 3)
+                throw new ArgumentOutOfRangeException(nameof(slot), "Slot must be 0-3");
+            if (_process?.Target == null) return false;
+            bool success = true;
+            foreach (uint threadId in GetProcessThreads())
+                if (!ClearBreakpointOnThread(threadId, slot, suspendThread: false)) success = false;
             _usedSlots[slot] = false;
             return success;
         }
@@ -154,7 +186,7 @@ namespace CrxMem.Core
             return threads;
         }
 
-        private bool SetBreakpointOnThread(uint threadId, int slot, ulong address, BreakpointType type, BreakpointSize size)
+        private bool SetBreakpointOnThread(uint threadId, int slot, ulong address, BreakpointType type, BreakpointSize size, bool suspendThread = true)
         {
             IntPtr hThread = ProcessAccess.OpenThread(
                 ProcessAccess.THREAD_GET_CONTEXT | ProcessAccess.THREAD_SET_CONTEXT | ProcessAccess.THREAD_SUSPEND_RESUME,
@@ -166,7 +198,7 @@ namespace CrxMem.Core
             try
             {
                 // Suspend the thread
-                if (ProcessAccess.SuspendThread(hThread) == 0xFFFFFFFF)
+                if (suspendThread && ProcessAccess.SuspendThread(hThread) == 0xFFFFFFFF)
                     return false;
 
                 try
@@ -182,7 +214,7 @@ namespace CrxMem.Core
                 }
                 finally
                 {
-                    ProcessAccess.ResumeThread(hThread);
+                    if (suspendThread) ProcessAccess.ResumeThread(hThread);
                 }
             }
             finally
@@ -347,7 +379,7 @@ namespace CrxMem.Core
             return true;
         }
 
-        private bool ClearBreakpointOnThread(uint threadId, int slot)
+        private bool ClearBreakpointOnThread(uint threadId, int slot, bool suspendThread = true)
         {
             IntPtr hThread = ProcessAccess.OpenThread(
                 ProcessAccess.THREAD_GET_CONTEXT | ProcessAccess.THREAD_SET_CONTEXT | ProcessAccess.THREAD_SUSPEND_RESUME,
@@ -358,7 +390,7 @@ namespace CrxMem.Core
 
             try
             {
-                if (ProcessAccess.SuspendThread(hThread) == 0xFFFFFFFF)
+                if (suspendThread && ProcessAccess.SuspendThread(hThread) == 0xFFFFFFFF)
                     return false;
 
                 try
@@ -374,7 +406,7 @@ namespace CrxMem.Core
                 }
                 finally
                 {
-                    ProcessAccess.ResumeThread(hThread);
+                    if (suspendThread) ProcessAccess.ResumeThread(hThread);
                 }
             }
             finally

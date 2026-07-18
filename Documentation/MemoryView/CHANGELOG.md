@@ -1,5 +1,32 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 9 owned breakpoints and debug commands
+
+### Features added or repaired
+
+- Added debugger-event coordination for owned software and hardware breakpoints without merging `DebugMonitor` into the native debugger loop.
+- Added verified `INT3` insertion, original-byte restoration, instruction-pointer correction, trap-flag execution, reinsertion, one-shot temporary breakpoints, hit counts, and detach restoration.
+- Added hardware DR0–DR3 allocation, size/alignment validation, DR6 hit reporting, propagation on thread creation, pending-state cleanup on thread exit, and debugger-owned cleanup.
+- Added Step Into, Step Over, Step Out, Run to Cursor, Run Until Return, and software-breakpoint toggle commands to the WPF command surface.
+- Added disassembly gutter markers for enabled software breakpoints and truthful paused-state command gating.
+- Extended the isolated target with a deterministic three-byte executable probe used only by native integration tests.
+
+### Tests added
+
+- Fake-service tests cover persistent and one-shot breakpoint lifecycles, internal-step auto-continuation, call step-over, pointer-sized step-out, detach restoration, hardware alignment, DR6 hits, and new-thread propagation.
+- Native Windows tests verify software breakpoint hit/IP correction/step/reinsertion/detach and hardware execution-breakpoint hit/clear against `CrxMem.DebugTarget`.
+- Release result: 84 default tests passed, 0 failed; four opt-in native debugger/patch/breakpoint tests passed together.
+
+### Known issues
+
+- Hardware breakpoint creation has no WPF editor yet; its verified service is ready for the Phase 10 breakpoint manager.
+- Step Over recognizes a selected `call` from the decoded mnemonic; source-level stepping and exception-policy controls are not implemented.
+- Step Out and Run Until Return use the pointer at the current stack pointer. They do not perform unwind metadata analysis.
+
+### Next recommended task
+
+Phase 10: expose synchronized breakpoint, memory-map, call-stack, patch-history, module, and thread panels.
+
 ## 2026-07-18 — Phase 8 verified byte patch transactions
 
 ### Features added or repaired

@@ -13,17 +13,22 @@ public partial class MemoryViewWindow : Window
     private readonly IMemoryViewLayoutStore _layoutStore;
 
     public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default)
+        : this(CreateComposition(process), startAddress)
+    {
+    }
+
+    private MemoryViewWindow(MemoryViewComposition composition, IntPtr startAddress)
         : this(
-            new MemoryViewDataService(process),
-            new MemoryViewLayoutStore(),
+            composition.DataService,
+            composition.LayoutStore,
             startAddress,
-            new NativeDebugSessionService(process),
-            new WindowsRegisterService(process),
-            new StackService(new ProcessMemoryService(process), new ModuleService(process)),
-            new WatchService(
-                new AddressExpressionService(new ProcessMemoryService(process), new ModuleService(process)),
-                new ProcessMemoryService(process)),
-            new PatchService(new ProcessPatchMemoryAdapter(process)))
+            composition.DebugSession,
+            composition.RegisterService,
+            composition.StackService,
+            composition.WatchService,
+            composition.PatchService,
+            composition.BreakpointService,
+            composition.BreakpointService)
     {
     }
 
@@ -35,7 +40,9 @@ public partial class MemoryViewWindow : Window
         IRegisterService? registerService = null,
         IStackService? stackService = null,
         IWatchService? watchService = null,
-        IPatchService? patchService = null)
+        IPatchService? patchService = null,
+        IBreakpointService? breakpointService = null,
+        IDebugExecutionService? executionService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
@@ -46,7 +53,9 @@ public partial class MemoryViewWindow : Window
             registerService: registerService,
             stackService: stackService,
             watchService: watchService,
-            patchService: patchService);
+            patchService: patchService,
+            breakpointService: breakpointService,
+            executionService: executionService);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
@@ -139,6 +148,41 @@ public partial class MemoryViewWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    private static MemoryViewComposition CreateComposition(ProcessAccess process)
+    {
+        var memory = new ProcessMemoryService(process);
+        var modules = new ModuleService(process);
+        var patchAdapter = new ProcessPatchMemoryAdapter(process);
+        var patches = new PatchService(patchAdapter);
+        var debugSession = new NativeDebugSessionService(process);
+        var breakpoints = new BreakpointService(
+            patchAdapter,
+            patches,
+            new WindowsThreadExecutionContextService(process),
+            debugSession,
+            new WindowsHardwareBreakpointAdapter(process));
+        debugSession.EventCoordinator = breakpoints;
+        return new MemoryViewComposition(
+            new MemoryViewDataService(process),
+            new MemoryViewLayoutStore(),
+            debugSession,
+            new WindowsRegisterService(process),
+            new StackService(memory, modules),
+            new WatchService(new AddressExpressionService(memory, modules), memory),
+            patches,
+            breakpoints);
+    }
+
+    private sealed record MemoryViewComposition(
+        IMemoryViewDataService DataService,
+        IMemoryViewLayoutStore LayoutStore,
+        NativeDebugSessionService DebugSession,
+        IRegisterService RegisterService,
+        IStackService StackService,
+        IWatchService WatchService,
+        IPatchService PatchService,
+        BreakpointService BreakpointService);
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,

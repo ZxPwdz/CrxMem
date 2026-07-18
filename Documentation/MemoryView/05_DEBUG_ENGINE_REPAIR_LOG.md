@@ -66,3 +66,13 @@ Entries will be appended when a command obtains a tested implementation path.
 - A failure after bytes have been written triggers a best-effort verified rollback; rollback failure is elevated as the terminal error and is never reported as success.
 - WPF raw-byte patching, NOP replacement, undo, and redo use this boundary. The legacy `WriteWithProtection` callers are unchanged for compatibility and are not treated as verified transactions.
 - Breakpoint insertion is still disabled until Phase 9 owns original bytes, exception/IP correction, trap-flag reinsertion, and detach cleanup.
+
+## Phase 9 breakpoint and execution ownership — 2026-07-18
+
+- The native loop now offers each event to a separate coordinator while retaining sole `WaitForDebugEvent` / `ContinueDebugEvent` ownership.
+- Owned `INT3` hits restore the original byte, move IP back one byte, set TF for the original instruction, and reinsert only after the matching thread's single-step event.
+- Reinsertion steps auto-continue during normal Resume and pause during explicit Step Into.
+- Temporary breakpoints implement call step-over, run-to-cursor, and stack-pointer return execution without becoming permanent records.
+- Hardware breakpoints allocate DR0–DR3, propagate to `CREATE_THREAD_DEBUG_EVENT`, identify hits from DR6, clear departed-thread pending state, and clear every owned slot before detach.
+- Debug-event-held threads are no longer suspended again during hardware cleanup, avoiding debugger suspend-count interference found by the native integration test.
+- Software and hardware breakpoint lifecycles passed real-target integration against the repository-owned deterministic probe.

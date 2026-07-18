@@ -136,10 +136,16 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
     private volatile bool _detachRequested;
     private bool _disposed;
 
-    public NativeDebugSessionService(ProcessAccess process, IDebuggerNativeApi? native = null)
+    public IDebugEventCoordinator? EventCoordinator { get; set; }
+
+    public NativeDebugSessionService(
+        ProcessAccess process,
+        IDebuggerNativeApi? native = null,
+        IDebugEventCoordinator? eventCoordinator = null)
     {
         _process = process ?? throw new ArgumentNullException(nameof(process));
         _native = native ?? new WindowsDebuggerNativeApi();
+        EventCoordinator = eventCoordinator;
         int processId = process.Target?.Id ?? 0;
         _snapshot = new DebugSessionSnapshot(DebugSessionState.Detached, processId, null);
     }
@@ -258,6 +264,7 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
                 {
                     if (!_detachRequested && !_continueSignal.Wait(PollMilliseconds)) continue;
                     _continueSignal.Reset();
+                    if (_detachRequested) EventCoordinator?.RestoreOwnedStateBeforeDetach();
                     uint continueStatus = ContinueStatus(pendingEvent);
                     if (!_native.ContinueEvent(pendingEvent.ProcessId, pendingEvent.ThreadId, continueStatus, out int continueError))
                         throw new Win32Exception(continueError, "ContinueDebugEvent failed.");
@@ -269,6 +276,7 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
 
                 if (_detachRequested)
                 {
+                    EventCoordinator?.RestoreOwnedStateBeforeDetach();
                     DetachAfterDrainingEvents(processId);
                     attached = false;
                     Publish(new DebugSessionSnapshot(DebugSessionState.Detached, (int)processId, null));
@@ -278,6 +286,7 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
                 if (!_native.WaitForEvent((uint)PollMilliseconds, out NativeDebugEvent? debugEvent, out int waitError))
                     throw new Win32Exception(waitError, "WaitForDebugEvent failed.");
                 if (debugEvent == null) continue;
+                EventCoordinator?.HandleEvent(debugEvent);
 
                 if (debugEvent.EventCode == ProcessAccess.EXIT_PROCESS_DEBUG_EVENT)
                 {
@@ -291,10 +300,19 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
                 if (debugEvent.EventCode == ProcessAccess.EXCEPTION_DEBUG_EVENT &&
                     debugEvent.ExceptionCode is ProcessAccess.EXCEPTION_BREAKPOINT or ProcessAccess.EXCEPTION_SINGLE_STEP)
                 {
+                    DebugEventDecision decision = EventCoordinator?.HandleException(debugEvent)
+                        ?? DebugEventDecision.Unhandled;
+                    if (decision.IsHandled && !decision.ShouldPause)
+                    {
+                        if (!_native.ContinueEvent(debugEvent.ProcessId, debugEvent.ThreadId, ProcessAccess.DBG_CONTINUE, out int handledError))
+                            throw new Win32Exception(handledError, "ContinueDebugEvent failed.");
+                        _native.CloseEventHandles(debugEvent);
+                        continue;
+                    }
                     pendingEvent = debugEvent;
-                    string reason = debugEvent.ExceptionCode == ProcessAccess.EXCEPTION_SINGLE_STEP
+                    string reason = decision.Reason ?? (debugEvent.ExceptionCode == ProcessAccess.EXCEPTION_SINGLE_STEP
                         ? "Single step"
-                        : "Breakpoint";
+                        : "Breakpoint");
                     Publish(new DebugSessionSnapshot(
                         DebugSessionState.Paused, (int)processId, (int)debugEvent.ThreadId, reason));
                     continue;
@@ -323,7 +341,12 @@ public sealed class NativeDebugSessionService : IDebugSessionService, IDisposabl
                 _native.ContinueEvent(pendingEvent.ProcessId, pendingEvent.ThreadId, ContinueStatus(pendingEvent), out _);
                 _native.CloseEventHandles(pendingEvent);
             }
-            if (attached) _native.Detach(unchecked((uint)_process.Target.Id), out _);
+            if (attached)
+            {
+                try { EventCoordinator?.RestoreOwnedStateBeforeDetach(); }
+                catch { /* The original session fault remains authoritative. */ }
+                _native.Detach(unchecked((uint)_process.Target.Id), out _);
+            }
         }
     }
 

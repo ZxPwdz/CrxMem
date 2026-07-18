@@ -10,7 +10,7 @@
 
 Kernel-driver and injected-VEH tests are isolated, opt-in, and never part of the default managed CI run.
 
-The native attached-debugger integration test uses the repository-owned `CrxMem.DebugTarget` and is enabled with `CRXMEM_RUN_DEBUG_TESTS=1`. The native patch integration uses the same isolated target and `CRXMEM_RUN_PATCH_TESTS=1`. Neither test may select an unrelated process.
+The native attached-debugger integration test uses the repository-owned `CrxMem.DebugTarget` and is enabled with `CRXMEM_RUN_DEBUG_TESTS=1`. Native patch integration uses `CRXMEM_RUN_PATCH_TESTS=1`; software/hardware breakpoint integration uses `CRXMEM_RUN_BREAKPOINT_TESTS=1`. These tests use only the isolated target they launch.
 
 ## Disassembly
 
@@ -79,6 +79,8 @@ Implemented in Phase 8: exact and NOP-padded patches, longer/stale rejection, pr
 - handle/suspend bookkeeping balances under failures.
 
 ## Breakpoints/debug session
+
+Implemented in Phase 9: software insertion/restoration/IP correction/reinsertion, one-shot hits, trap-flag stepping, call step-over, stack-pointer step-out, run-to-cursor, DR slot validation/hits, new-thread propagation, thread-exit pending cleanup, and detach cleanup. Conditions and thread filters remain pending.
 
 - legal state transitions and command enablement;
 - attach/detach/process exit;

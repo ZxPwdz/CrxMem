@@ -10,6 +10,10 @@
     <Window.InputBindings>
         <KeyBinding Key="Left" Modifiers="Alt" Command="{Binding BackCommand}"/>
         <KeyBinding Key="Right" Modifiers="Alt" Command="{Binding ForwardCommand}"/>
+        <KeyBinding Key="F2" Command="{Binding ToggleBreakpointCommand}"/>
+        <KeyBinding Key="F7" Command="{Binding StepIntoCommand}"/>
+        <KeyBinding Key="F8" Command="{Binding StepOverCommand}"/>
+        <KeyBinding Key="F8" Modifiers="Shift" Command="{Binding StepOutCommand}"/>
     </Window.InputBindings>
     <Window.Resources>
         <ResourceDictionary>
@@ -66,10 +70,15 @@
                 <MenuItem Header="_Pause" Command="{Binding PauseCommand}"/>
                 <MenuItem Header="_Resume" Command="{Binding ResumeCommand}"/>
                 <Separator/>
-                <MenuItem Header="Stepping unavailable" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Step commands require breakpoint transactions and trap-flag tests"/>
+                <MenuItem Header="Step _Into" Command="{Binding StepIntoCommand}" InputGestureText="F7"/>
+                <MenuItem Header="Step _Over" Command="{Binding StepOverCommand}" InputGestureText="F8"/>
+                <MenuItem Header="Step O_ut" Command="{Binding StepOutCommand}" InputGestureText="Shift+F8"/>
+                <MenuItem Header="Run to _Cursor" Command="{Binding RunToCursorCommand}"/>
+                <MenuItem Header="Run Until _Return" Command="{Binding RunUntilReturnCommand}"/>
+                <MenuItem Header="Toggle _Breakpoint" Command="{Binding ToggleBreakpointCommand}" InputGestureText="F2"/>
             </MenuItem>
             <MenuItem Header="_Search"><MenuItem Header="_Go to Address" Click="FocusAddress_Click" InputGestureText="Ctrl+G"/></MenuItem>
-            <MenuItem Header="_Memory" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Memory mutation is disabled in the WPF preview"/>
+            <MenuItem Header="_Memory"><MenuItem Header="Apply verified byte patch in the patch pane" IsEnabled="False"/></MenuItem>
             <MenuItem Header="_Bookmarks" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Bookmark migration arrives with the metadata service"/>
             <MenuItem Header="_Tools" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="No WPF tools are available in this preview"/>
             <MenuItem Header="_Window" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Layout presets are planned"/>
@@ -86,10 +95,10 @@
                     <Separator Margin="6,0"/>
                     <Button Content="❚❚ Pause" Style="{StaticResource ToolbarButton}" Command="{Binding PauseCommand}"/>
                     <Button Content="▶ Run" Style="{StaticResource ToolbarButton}" Command="{Binding ResumeCommand}"/>
-                    <Button Content="Step Into" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
-                    <Button Content="Step Over" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
-                    <Button Content="Step Out" Style="{StaticResource ToolbarButton}" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Debugger command unavailable"/>
-                    <Button Content="◉ Breakpoints" Style="{StaticResource ToolbarButton}" IsEnabled="False" Foreground="{StaticResource MemoryView.BreakpointBrush}" ToolTipService.ShowOnDisabled="True" ToolTip="Breakpoint manager is not implemented"/>
+                    <Button Content="Step Into" Style="{StaticResource ToolbarButton}" Command="{Binding StepIntoCommand}" ToolTip="Trap-flag single step"/>
+                    <Button Content="Step Over" Style="{StaticResource ToolbarButton}" Command="{Binding StepOverCommand}" ToolTip="Step over calls with a one-shot breakpoint"/>
+                    <Button Content="Step Out" Style="{StaticResource ToolbarButton}" Command="{Binding StepOutCommand}" ToolTip="Run to the pointer-sized return address"/>
+                    <Button Content="◉ Breakpoint" Style="{StaticResource ToolbarButton}" Command="{Binding ToggleBreakpointCommand}" Foreground="{StaticResource MemoryView.BreakpointBrush}" ToolTip="Toggle a verified software breakpoint"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
                     <Button Content="←" Command="{Binding BackCommand}" Style="{StaticResource ToolbarButton}" ToolTip="Back (Alt+Left)"/>

@@ -74,6 +74,7 @@ public interface IPatchService
     bool CanRedo { get; }
     Task<PatchResult> ApplyAsync(PatchRequest request, CancellationToken cancellationToken = default);
     Task<PatchResult> RestoreAsync(Guid patchId, CancellationToken cancellationToken = default);
+    Task<PatchResult> ReapplyAsync(Guid patchId, CancellationToken cancellationToken = default);
     Task<PatchResult> UndoAsync(CancellationToken cancellationToken = default);
     Task<PatchResult> RedoAsync(CancellationToken cancellationToken = default);
 }
@@ -177,6 +178,9 @@ public sealed class PatchService : IPatchService, IDisposable
 
     public Task<PatchResult> RestoreAsync(Guid patchId, CancellationToken cancellationToken = default) =>
         SetAppliedStateAsync(patchId, false, addToRedo: false, cancellationToken);
+
+    public Task<PatchResult> ReapplyAsync(Guid patchId, CancellationToken cancellationToken = default) =>
+        SetAppliedStateAsync(patchId, true, addToRedo: false, cancellationToken);
 
     public Task<PatchResult> UndoAsync(CancellationToken cancellationToken = default)
     {

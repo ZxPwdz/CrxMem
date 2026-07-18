@@ -65,6 +65,29 @@ public sealed class MemoryViewWpfTests
     }
 
     [Fact]
+    public async Task DebugExecutionCommands_EnableOnlyForPausedSelectedThread()
+    {
+        var debug = new PausedDebugSession();
+        var breakpoints = new FakeBreakpointExecutionService();
+        using var viewModel = new MemoryViewViewModel(
+            new FakeMemoryViewDataService(),
+            debugSession: debug,
+            breakpointService: breakpoints,
+            executionService: breakpoints);
+        await viewModel.InitializeAsync(0);
+
+        Assert.True(viewModel.StepIntoCommand.CanExecute(null));
+        Assert.True(viewModel.ToggleBreakpointCommand.CanExecute(null));
+        viewModel.ToggleBreakpointCommand.Execute(null);
+        viewModel.StepIntoCommand.Execute(null);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (breakpoints.ToggleCalls == 0 || breakpoints.StepIntoCalls == 0)
+            await Task.Delay(10, timeout.Token);
+
+        Assert.Equal(0x140001000UL, breakpoints.LastAddress);
+    }
+
+    [Fact]
     public void ThemeResources_LoadOnStaThread()
     {
         Exception? failure = null;
@@ -196,9 +219,44 @@ public sealed class MemoryViewWpfTests
 
         public Task<PatchResult> RestoreAsync(Guid patchId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+        public Task<PatchResult> ReapplyAsync(Guid patchId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
         public Task<PatchResult> UndoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
         public Task<PatchResult> RedoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
+    }
+
+    private sealed class PausedDebugSession : IDebugSessionService
+    {
+        public DebugSessionSnapshot Snapshot { get; } = new(DebugSessionState.Paused, 42, 7, "Breakpoint");
+        public event EventHandler<DebugSessionSnapshot>? StateChanged;
+        public Task AttachAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DetachAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeBreakpointExecutionService : IBreakpointService, IDebugExecutionService
+    {
+        public int ToggleCalls { get; private set; }
+        public int StepIntoCalls { get; private set; }
+        public ulong LastAddress { get; private set; }
+        public IReadOnlyList<BreakpointRecord> Breakpoints => Array.Empty<BreakpointRecord>();
+        public IReadOnlyList<HardwareBreakpointRecord> HardwareBreakpoints => Array.Empty<HardwareBreakpointRecord>();
+        public bool HasEnabledBreakpoint(ulong address) => false;
+        public Task<BreakpointRecord?> ToggleAsync(ulong address, string? moduleName = null, ulong? moduleRelativeAddress = null, CancellationToken cancellationToken = default)
+        { ToggleCalls++; LastAddress = address; return Task.FromResult<BreakpointRecord?>(null); }
+        public Task<BreakpointRecord> AddTemporaryAsync(ulong address, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<HardwareBreakpointRecord> SetHardwareAsync(ulong address, HardwareBreakpointAccess access, HardwareBreakpointSize size, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task ClearHardwareAsync(int slot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StepIntoAsync(CancellationToken cancellationToken = default)
+        { StepIntoCalls++; return Task.CompletedTask; }
+        public Task StepOverAsync(ulong address, int instructionLength, bool isCall, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task StepOutAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RunToAsync(ulong address, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RunUntilReturnAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

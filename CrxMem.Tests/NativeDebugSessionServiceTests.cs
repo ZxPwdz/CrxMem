@@ -100,6 +100,24 @@ public sealed class NativeDebugSessionServiceTests
         Assert.Contains("DebugActiveProcess", service.Snapshot.Error!);
     }
 
+    [Fact]
+    public async Task HandledInternalSingleStep_IsContinuedWithoutPublishingPausedState()
+    {
+        using var process = new ProcessAccess();
+        Assert.True(process.Open(Environment.ProcessId));
+        var native = new FakeDebuggerNativeApi((uint)Environment.ProcessId);
+        var coordinator = new AutoContinueCoordinator();
+        using var service = new NativeDebugSessionService(process, native, coordinator);
+
+        await service.AttachAsync(CancellationToken.None);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (coordinator.HandledEvents == 0) await Task.Delay(10, timeout.Token);
+
+        Assert.Equal(DebugSessionState.Running, service.Snapshot.State);
+        await service.DetachAsync(CancellationToken.None);
+        Assert.True(coordinator.RestoreCalls > 0);
+    }
+
     private static async Task WaitForStateAsync(
         NativeDebugSessionService service,
         DebugSessionState state)
@@ -200,5 +218,17 @@ public sealed class NativeDebugSessionServiceTests
         }
 
         public void CloseEventHandles(NativeDebugEvent debugEvent) { }
+    }
+
+    private sealed class AutoContinueCoordinator : IDebugEventCoordinator
+    {
+        public int HandledEvents { get; private set; }
+        public int RestoreCalls { get; private set; }
+        public DebugEventDecision HandleException(NativeDebugEvent debugEvent)
+        {
+            HandledEvents++;
+            return DebugEventDecision.Continue;
+        }
+        public void RestoreOwnedStateBeforeDetach() => RestoreCalls++;
     }
 }
