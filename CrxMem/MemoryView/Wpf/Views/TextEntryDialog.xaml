@@ -1,0 +1,22 @@
+<Window x:Class="CrxMem.MemoryView.Wpf.Views.TextEntryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="470" Height="180" ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource MemoryView.PanelBackgroundBrush}"
+        Foreground="{DynamicResource MemoryView.TextPrimaryBrush}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="promptText" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <TextBox x:Name="valueTextBox" Grid.Row="1" FontFamily="Cascadia Mono, Consolas"/>
+        <TextBlock Grid.Row="2" Text="Writes are verified and recorded in patch history." Foreground="{DynamicResource MemoryView.TextSecondaryBrush}" Margin="0,10,0,0"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Width="82" Margin="0,0,8,0" IsCancel="True"/>
+            <Button Content="OK" Width="82" IsDefault="True" Click="Ok_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

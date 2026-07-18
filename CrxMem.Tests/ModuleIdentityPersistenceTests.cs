@@ -107,10 +107,12 @@ public sealed class ModuleIdentityPersistenceTests
 
             Assert.True(writer.SetComment(location, "player health"));
             Assert.True(writer.SetBookmark(location, true, "health write"));
+            Assert.True(writer.SetMetadata(location, new EditableMemoryMetadata("armor", true, "armor write")));
 
             var reader = new VersionedMemoryMetadataService(modules, identities, path, migrateLegacy: false);
-            Assert.Equal("player health", reader.GetComment(location));
+            Assert.Equal("armor", reader.GetComment(location));
             Assert.True(reader.HasBookmark(location));
+            Assert.Equal("armor write", reader.GetMetadata(location).Label);
 
             var wrongIdentity = identity with { Sha256 = new string('E', 64) };
             var staleReader = new VersionedMemoryMetadataService(modules,

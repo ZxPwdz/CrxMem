@@ -15,7 +15,7 @@ This route was promoted at the project owner's direction so the redesign is the 
 | Disassembly | Pass | Bounded Iced service, immutable rows/tokens, visible-row rendering, markers, branch targets and flows |
 | Debug session | Pass | Native attach/detach, pause/resume, process exit, selected thread, x86/x64 context capture |
 | Registers and flags | Pass (read-only) | Paused-snapshot invariant and changed-value highlighting; editing remains gated |
-| Hex/stack/watch | Pass (inspection) | Virtualized hex, selection/copy/deltas, paused-thread stack, expression watches and explicit errors |
+| Hex/stack/watch | Pass | Virtualized range selection/copy/edit/paste/deltas, verified patch routing, paused-thread stack, expression watches and explicit errors |
 | Safe byte patches | Pass | Original-byte validation, protection restoration, cache flush, read-back, rollback, undo/redo |
 | Breakpoints and stepping | Pass | Software and hardware breakpoints, reinsertion, hit counts, thread propagation, step/run commands |
 | Remaining panels | Pass with labelled limitations | Breakpoints, memory map, modules, threads, patches and heuristic call-stack projection |
@@ -24,12 +24,10 @@ This route was promoted at the project owner's direction so the redesign is the 
 
 ## Outstanding parity gates
 
-1. Add complete WPF comment/bookmark create, edit, and delete workflows.
-2. Add direct hex nibble/paste editing on top of the verified patch transaction service.
-3. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
-4. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
-5. Add register write-back only after paused-thread integration tests prove restoration and error handling.
-6. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
+1. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
+2. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
+3. Add register write-back only after paused-thread integration tests prove restoration and error handling.
+4. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
 
 ## Performance and test record
 
@@ -59,4 +57,4 @@ dotnet test CrxMem.sln -c Release --no-build
 
 ## Recommended next milestone
 
-Phase 13 completed assembler extraction and durable module-identity persistence. The next milestone should expose versioned comment/bookmark editing and direct hex editing through the verified services, then build a true unwinder before repeating the parity review.
+Phase 14 completed versioned comment/bookmark editing and direct verified hex editing. The next milestone should build a true native unwinder with optional symbols before repeating the parity review.

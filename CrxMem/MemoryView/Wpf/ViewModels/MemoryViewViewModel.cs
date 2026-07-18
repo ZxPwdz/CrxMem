@@ -20,6 +20,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IBreakpointService? _breakpointService;
     private readonly IDebugExecutionService? _executionService;
     private readonly IModuleService? _moduleService;
+    private readonly IEditableMemoryMetadataService? _editableMetadata;
     private readonly IThreadService? _threadService;
     private readonly IMemoryMapService? _memoryMapService;
     private readonly SynchronizationContext? _uiContext;
@@ -88,6 +89,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IBreakpointService? breakpointService = null,
         IDebugExecutionService? executionService = null,
         IModuleService? moduleService = null,
+        IEditableMemoryMetadataService? editableMetadata = null,
         IThreadService? threadService = null,
         IMemoryMapService? memoryMapService = null)
     {
@@ -102,6 +104,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _breakpointService = breakpointService;
         _executionService = executionService;
         _moduleService = moduleService;
+        _editableMetadata = editableMetadata;
         _threadService = threadService;
         _memoryMapService = memoryMapService;
         _uiContext = SynchronizationContext.Current;
@@ -646,6 +649,71 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         RefreshPatchHistory();
         if (result.Succeeded) await RefreshAsync();
         RaisePatchCanExecuteChanged();
+    }
+
+    public EditableMemoryMetadata GetSelectedMetadata()
+    {
+        if (_editableMetadata == null || SelectedInstruction == null)
+            return new EditableMemoryMetadata(null, false);
+        ModuleDescriptor? module = _moduleService?.FindByAddress(SelectedInstruction.RuntimeAddress);
+        return _editableMetadata.GetMetadata(MemoryLocation.Create(SelectedInstruction.RuntimeAddress, module));
+    }
+
+    public async Task<bool> UpdateSelectedMetadataAsync(EditableMemoryMetadata metadata)
+    {
+        if (_editableMetadata == null || SelectedInstruction == null)
+        {
+            Status = "Versioned metadata editing is unavailable for this process.";
+            return false;
+        }
+        ModuleDescriptor? module = _moduleService?.FindByAddress(SelectedInstruction.RuntimeAddress);
+        if (module == null)
+        {
+            Status = "Metadata requires a fingerprinted module-relative address.";
+            return false;
+        }
+        bool saved = _editableMetadata.SetMetadata(
+            MemoryLocation.Create(SelectedInstruction.RuntimeAddress, module), metadata);
+        Status = saved ? "Comment and bookmark metadata saved." : "Metadata could not be saved.";
+        if (saved) await RefreshAsync();
+        return saved;
+    }
+
+    public async Task<bool> ApplyHexPatchTextAsync(ulong address, byte[] availableOriginalBytes, string text)
+    {
+        if (_patchService == null)
+        {
+            Status = "Verified patching is unavailable.";
+            return false;
+        }
+        if (!TryParseBytes(text, out byte[] replacement))
+        {
+            Status = "Paste bytes must be two-digit hexadecimal values separated by spaces, commas, or dashes.";
+            return false;
+        }
+        if (replacement.Length > availableOriginalBytes.Length)
+        {
+            Status = $"Only {availableOriginalBytes.Length} loaded bytes are available from the selected address.";
+            return false;
+        }
+        byte[] original = availableOriginalBytes[..replacement.Length];
+        ModuleDescriptor? module = _moduleService?.FindByAddress(address);
+        IsBusy = true;
+        try
+        {
+            PatchResult result = await _patchService.ApplyAsync(new PatchRequest(
+                address, original, replacement, false, "Hex edit",
+                module?.Name, module == null ? null : address - module.BaseAddress));
+            Status = result.Message;
+            RefreshPatchHistory();
+            if (result.Succeeded) await RefreshAsync();
+            return result.Succeeded;
+        }
+        finally
+        {
+            IsBusy = false;
+            RaisePatchCanExecuteChanged();
+        }
     }
 
     private static bool TryParseBytes(string? text, out byte[] bytes)

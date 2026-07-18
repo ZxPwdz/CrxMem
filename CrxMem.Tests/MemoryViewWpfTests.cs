@@ -86,6 +86,29 @@ public sealed class MemoryViewWpfTests
     }
 
     [Fact]
+    public async Task HexEdit_UsesLoadedExpectedBytesAndModuleRelativeHistory()
+    {
+        var patchService = new FakePatchService();
+        var module = new ModuleDescriptor("Target.exe", 0x140000000, 0x100000);
+        using var viewModel = new MemoryViewViewModel(
+            new FakeMemoryViewDataService(),
+            patchService: patchService,
+            moduleService: new FakeModuleService(module));
+        await viewModel.InitializeAsync(0);
+
+        bool applied = await viewModel.ApplyHexPatchTextAsync(
+            0x140001001, [0x89, 0xD8, 0xCC], "90 91");
+
+        Assert.True(applied);
+        Assert.NotNull(patchService.LastRequest);
+        Assert.Equal(new byte[] { 0x89, 0xD8 }, patchService.LastRequest.ExpectedOriginalBytes);
+        Assert.Equal(new byte[] { 0x90, 0x91 }, patchService.LastRequest.ReplacementBytes);
+        Assert.False(patchService.LastRequest.PadWithNops);
+        Assert.Equal("Target.exe", patchService.LastRequest.ModuleName);
+        Assert.Equal(0x1001UL, patchService.LastRequest.ModuleRelativeAddress);
+    }
+
+    [Fact]
     public async Task DebugExecutionCommands_EnableOnlyForPausedSelectedThread()
     {
         var debug = new PausedDebugSession();
@@ -149,11 +172,19 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal(DataGridSelectionMode.Extended, patchGrid.SelectionMode);
                 var disassembly = Assert.IsType<VirtualizedDisassemblyControl>(window.FindName("disassemblyView"));
                 Assert.NotNull(disassembly.ContextMenu);
-                Assert.Equal(6, disassembly.ContextMenu!.Items.Count);
+                Assert.Equal(7, disassembly.ContextMenu!.Items.Count);
                 var assembleButton = Assert.IsType<Button>(window.FindName("assembleButton"));
                 Assert.Equal("Assemble", assembleButton.Content);
                 Assert.NotNull(Assert.IsType<MemoryViewViewModel>(window.DataContext).AssembleCommand);
                 window.Close();
+
+                var metadataDialog = new MetadataEditDialog("comment", true, "bookmark");
+                Assert.Equal("comment", metadataDialog.Comment);
+                Assert.True(metadataDialog.IsBookmarked);
+                metadataDialog.Close();
+                var textDialog = new TextEntryDialog("Edit", "Prompt", "90 90");
+                Assert.Equal("90 90", textDialog.Value);
+                textDialog.Close();
 
                 var renderer = new VirtualizedDisassemblyControl
                 {
@@ -251,6 +282,15 @@ public sealed class MemoryViewWpfTests
     {
         public MemoryViewLayoutSettings Load() => new();
         public void Save(MemoryViewLayoutSettings settings) { }
+    }
+
+    private sealed class FakeModuleService(ModuleDescriptor module) : IModuleService
+    {
+        public IReadOnlyList<ModuleDescriptor> GetModules() => [module];
+        public ModuleDescriptor? FindByAddress(ulong address) => module.Contains(address) ? module : null;
+        public ModuleDescriptor? FindByName(string moduleName) =>
+            module.Name.Equals(moduleName, StringComparison.OrdinalIgnoreCase) ? module : null;
+        public ulong GetDefaultAddress() => module.BaseAddress;
     }
 
     private sealed class FakePatchService : IPatchService

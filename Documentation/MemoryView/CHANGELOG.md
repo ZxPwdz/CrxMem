@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 14 metadata and direct hex editing
+
+- Added WPF comment/bookmark create, edit, toggle, label, and clear workflows backed by fingerprinted module identity plus RVA.
+- Added byte-range drag selection to the virtualized hex dump with range copy, verified edit, clipboard paste, and Ctrl+V.
+- Routed every hex mutation through `IPatchService`, preserving expected-original-byte validation, protection restoration, cache flushing, read-back verification, and patch history.
+- Kept edits bounded to currently loaded bytes and rejected malformed or oversized input without writing memory.
+- Added WPF resource/dialog, module-relative hex request, and atomic metadata round-trip regression tests.
+
 ## 2026-07-18 — Phase 13 verified assembly and durable identity
 
 - Extracted a UI-free `IAssemblerService` backed by Iced's typed assembler and enabled the WPF Assemble button.

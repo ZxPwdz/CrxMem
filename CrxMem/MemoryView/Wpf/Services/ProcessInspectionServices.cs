@@ -23,6 +23,14 @@ public interface IMemoryMetadataService
     bool HasBookmark(MemoryLocation location);
 }
 
+public sealed record EditableMemoryMetadata(string? Comment, bool IsBookmarked, string? Label = null);
+
+public interface IEditableMemoryMetadataService : IMemoryMetadataService
+{
+    EditableMemoryMetadata GetMetadata(MemoryLocation location);
+    bool SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata);
+}
+
 public sealed class ProcessMemoryService : IProcessMemoryService
 {
     private readonly ProcessAccess _process;

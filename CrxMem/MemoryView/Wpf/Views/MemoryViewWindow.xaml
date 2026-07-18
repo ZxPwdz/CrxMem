@@ -100,7 +100,10 @@
             </MenuItem>
             <MenuItem Header="_Search"><MenuItem Header="_Go to Address" Click="FocusAddress_Click" InputGestureText="Ctrl+G"/></MenuItem>
             <MenuItem Header="_Memory"><MenuItem Header="Apply verified byte patch in the patch pane" IsEnabled="False"/></MenuItem>
-            <MenuItem Header="_Bookmarks" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Bookmark migration arrives with the metadata service"/>
+            <MenuItem Header="_Bookmarks">
+                <MenuItem Header="_Edit Comment / Bookmark" Click="EditMetadata_Click" InputGestureText=";"/>
+                <MenuItem Header="_Toggle Bookmark" Click="ToggleBookmark_Click" InputGestureText="Ctrl+D"/>
+            </MenuItem>
             <MenuItem Header="_Tools" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="No WPF tools are available in this preview"/>
             <MenuItem Header="_Window" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Layout presets are planned"/>
             <MenuItem Header="_Help"><MenuItem Header="About this preview" Click="About_Click"/></MenuItem>
@@ -190,6 +193,7 @@
                                 <MenuItem Header="Copy _Instruction" Click="CopyDisassemblyRow_Click" InputGestureText="Ctrl+C"/>
                                 <MenuItem Header="Copy _Address" Click="CopyDisassemblyAddress_Click"/>
                                 <MenuItem Header="Copy _Bytes" Click="CopyDisassemblyBytes_Click"/>
+                                <MenuItem Header="Edit _Comment / Bookmark" Click="EditMetadata_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Toggle _Breakpoint" Click="ToggleBreakpointContext_Click" InputGestureText="F2"/>
                                 <MenuItem Header="Replace with _NOPs" Click="NopInstructionContext_Click"/>
@@ -207,8 +211,11 @@
                             <memoryControls:VirtualizedHexDumpControl x:Name="hexDumpView" ItemsSource="{Binding HexRows}">
                                 <memoryControls:VirtualizedHexDumpControl.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="Copy _Byte" Click="CopyHexByte_Click"/>
+                                        <MenuItem Header="Copy Selected _Bytes" Click="CopyHexByte_Click"/>
                                         <MenuItem Header="Copy _Address" Click="CopyHexAddress_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="_Edit Selected Bytes..." Click="EditHexBytes_Click"/>
+                                        <MenuItem Header="_Paste Bytes" Click="PasteHexBytes_Click" InputGestureText="Ctrl+V"/>
                                         <Separator/>
                                         <MenuItem Header="_Go to Selected Address" Click="GoToHexAddress_Click"/>
                                     </ContextMenu>

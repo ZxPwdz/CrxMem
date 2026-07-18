@@ -19,7 +19,7 @@ public sealed class PersistedMemoryMetadataDocument
     public List<PersistedMemoryMetadataEntry> Entries { get; set; } = new();
 }
 
-public sealed class VersionedMemoryMetadataService : IMemoryMetadataService
+public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataService
 {
     private readonly IModuleService _modules;
     private readonly IModuleIdentityService _identities;
@@ -64,6 +64,17 @@ public sealed class VersionedMemoryMetadataService : IMemoryMetadataService
 
     public bool SetBookmark(MemoryLocation location, bool isBookmarked, string? label = null) =>
         Upsert(location, null, isBookmarked, label);
+
+    public EditableMemoryMetadata GetMetadata(MemoryLocation location)
+    {
+        PersistedMemoryMetadataEntry? entry = Find(location);
+        return entry == null
+            ? new EditableMemoryMetadata(GetComment(location), HasBookmark(location))
+            : new EditableMemoryMetadata(entry.Comment, entry.IsBookmarked, entry.Label);
+    }
+
+    public bool SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata) =>
+        Upsert(location, metadata.Comment ?? string.Empty, metadata.IsBookmarked, metadata.Label ?? string.Empty);
 
     private PersistedMemoryMetadataEntry? Find(MemoryLocation location)
     {

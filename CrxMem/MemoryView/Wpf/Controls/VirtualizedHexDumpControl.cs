@@ -8,6 +8,7 @@ using Clipboard = System.Windows.Clipboard;
 using Color = System.Windows.Media.Color;
 using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Pen = System.Windows.Media.Pen;
 using Point = System.Windows.Point;
 using Rect = System.Windows.Rect;
@@ -23,6 +24,9 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
     private int _firstVisibleRow;
     private int _selectedRow = -1;
     private int _selectedByte = -1;
+    private ulong? _selectionAnchorAddress;
+    private ulong? _selectionEndAddress;
+    private bool _isDraggingSelection;
 
     public VirtualizedHexDumpControl()
     {
@@ -64,6 +68,26 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
         ? data[_selectedByte]
         : null;
 
+    public ulong? SelectedRangeAddress => _selectionAnchorAddress.HasValue && _selectionEndAddress.HasValue
+        ? Math.Min(_selectionAnchorAddress.Value, _selectionEndAddress.Value)
+        : SelectedByteAddress;
+
+    public byte[] SelectedRangeBytes
+    {
+        get
+        {
+            if (!SelectedRangeAddress.HasValue || !_selectionAnchorAddress.HasValue || !_selectionEndAddress.HasValue)
+                return Array.Empty<byte>();
+            ulong first = Math.Min(_selectionAnchorAddress.Value, _selectionEndAddress.Value);
+            ulong last = Math.Max(_selectionAnchorAddress.Value, _selectionEndAddress.Value);
+            ulong length = last - first + 1;
+            return GetContiguousBytes(SelectedRangeAddress.Value, (int)Math.Min(length, 4096));
+        }
+    }
+
+    public byte[] GetAvailableBytesFromSelection(int maximum = 256) =>
+        SelectedRangeAddress is ulong address ? GetContiguousBytes(address, Math.Clamp(maximum, 1, 4096)) : Array.Empty<byte>();
+
     public int VisibleRowCapacity => Math.Max(1, (int)Math.Ceiling(ActualHeight / RowHeight));
     public int LastRenderedRowCount { get; private set; }
 
@@ -90,7 +114,8 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
             for (int byteIndex = 0; byteIndex < data.Length; byteIndex++)
             {
                 double x = AddressWidth + byteIndex * ByteCellWidth;
-                if (rowIndex == _selectedRow && byteIndex == _selectedByte)
+                ulong byteAddress = row.RuntimeAddress + (ulong)byteIndex;
+                if (IsAddressSelected(byteAddress))
                     context.DrawRectangle(selection, null, new Rect(x - 2, y, ByteCellWidth, RowHeight));
                 Brush byteBrush = row.ChangedByteIndices?.Contains(byteIndex) == true ? changed : text;
                 DrawText(context, data[byteIndex].ToString("X2"), x, y + 3, byteBrush, typeface);
@@ -110,36 +135,73 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        SelectByteAt(e.GetPosition(this));
+        if (SelectByteAt(e.GetPosition(this), resetRange: true))
+        {
+            _isDraggingSelection = true;
+            CaptureMouse();
+            e.Handled = true;
+        }
         base.OnMouseLeftButtonDown(e);
     }
 
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
-        SelectByteAt(e.GetPosition(this));
+        if (TryGetByteAt(e.GetPosition(this), out int row, out int byteIndex, out ulong address) && !IsAddressSelected(address))
+            SelectByte(row, byteIndex, address, resetRange: true);
         base.OnMouseRightButtonDown(e);
     }
 
-    private void SelectByteAt(Point point)
+    protected override void OnMouseMove(MouseEventArgs e)
     {
-        Focus();
-        int row = _firstVisibleRow + (int)(point.Y / RowHeight);
-        int byteIndex = (int)((point.X - AddressWidth) / ByteCellWidth);
+        if (_isDraggingSelection && e.LeftButton == MouseButtonState.Pressed &&
+            TryGetByteAt(e.GetPosition(this), out int row, out int byteIndex, out ulong address))
+            SelectByte(row, byteIndex, address, resetRange: false);
+        base.OnMouseMove(e);
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        _isDraggingSelection = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        base.OnMouseLeftButtonUp(e);
+    }
+
+    private bool SelectByteAt(Point point, bool resetRange)
+    {
+        if (!TryGetByteAt(point, out int row, out int byteIndex, out ulong address)) return false;
+        SelectByte(row, byteIndex, address, resetRange);
+        return true;
+    }
+
+    private bool TryGetByteAt(Point point, out int row, out int byteIndex, out ulong address)
+    {
+        row = _firstVisibleRow + (int)(point.Y / RowHeight);
+        byteIndex = (int)((point.X - AddressWidth) / ByteCellWidth);
+        address = 0;
         if (row >= 0 && row < _items.Count && byteIndex >= 0 &&
             byteIndex < (_items[row].Data?.Length ?? 16))
         {
-            _selectedRow = row;
-            _selectedByte = byteIndex;
-            InvalidateVisual();
+            address = _items[row].RuntimeAddress + (ulong)byteIndex;
+            return true;
         }
+        return false;
+    }
+
+    private void SelectByte(int row, int byteIndex, ulong address, bool resetRange)
+    {
+        Focus();
+        _selectedRow = row;
+        _selectedByte = byteIndex;
+        if (resetRange || !_selectionAnchorAddress.HasValue) _selectionAnchorAddress = address;
+        _selectionEndAddress = address;
+        InvalidateVisual();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control &&
-            SelectedByteAddress.HasValue && SelectedByteValue.HasValue)
+        if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control && SelectedRangeBytes.Length > 0)
         {
-            Clipboard.SetText($"0x{SelectedByteAddress:X}: {SelectedByteValue:X2}");
+            Clipboard.SetText(string.Join(' ', SelectedRangeBytes.Select(value => value.ToString("X2"))));
             e.Handled = true;
         }
         base.OnKeyDown(e);
@@ -161,6 +223,38 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
         _items = ItemsSource?.ToArray() ?? Array.Empty<HexPreviewRow>();
         _firstVisibleRow = Math.Clamp(_firstVisibleRow, 0, Math.Max(0, _items.Count - VisibleRowCapacity));
         InvalidateVisual();
+    }
+
+    private bool IsAddressSelected(ulong address)
+    {
+        if (!_selectionAnchorAddress.HasValue || !_selectionEndAddress.HasValue) return false;
+        ulong first = Math.Min(_selectionAnchorAddress.Value, _selectionEndAddress.Value);
+        ulong last = Math.Max(_selectionAnchorAddress.Value, _selectionEndAddress.Value);
+        return address >= first && address <= last;
+    }
+
+    private byte[] GetContiguousBytes(ulong address, int maximum)
+    {
+        var bytes = new List<byte>(maximum);
+        ulong expected = address;
+        foreach (HexPreviewRow row in _items.OrderBy(item => item.RuntimeAddress))
+        {
+            byte[] data = row.Data ?? ParseBytes(row.Bytes);
+            ulong rowEnd = row.RuntimeAddress + (ulong)data.Length;
+            if (expected < row.RuntimeAddress || expected >= rowEnd)
+            {
+                if (bytes.Count > 0) break;
+                continue;
+            }
+            int offset = checked((int)(expected - row.RuntimeAddress));
+            for (int index = offset; index < data.Length && bytes.Count < maximum; index++)
+            {
+                bytes.Add(data[index]);
+                expected++;
+            }
+            if (bytes.Count >= maximum) break;
+        }
+        return bytes.ToArray();
     }
 
     private static byte[] ParseBytes(string text) => text.Split(' ', StringSplitOptions.RemoveEmptyEntries)

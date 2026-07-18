@@ -42,6 +42,7 @@ public partial class MemoryViewWindow : Window
             composition.BreakpointService,
             composition.BreakpointService,
             composition.ModuleService,
+            composition.MetadataService,
             composition.ThreadService,
             composition.MemoryMapService)
     {
@@ -60,6 +61,7 @@ public partial class MemoryViewWindow : Window
         IBreakpointService? breakpointService = null,
         IDebugExecutionService? executionService = null,
         IModuleService? moduleService = null,
+        IEditableMemoryMetadataService? editableMetadata = null,
         IThreadService? threadService = null,
         IMemoryMapService? memoryMapService = null)
     {
@@ -77,6 +79,7 @@ public partial class MemoryViewWindow : Window
             breakpointService: breakpointService,
             executionService: executionService,
             moduleService: moduleService,
+            editableMetadata: editableMetadata,
             threadService: threadService,
             memoryMapService: memoryMapService);
         DataContext = _viewModel;
@@ -106,6 +109,21 @@ public partial class MemoryViewWindow : Window
         else if (e.Key == Key.F5 && _viewModel.RefreshCommand.CanExecute(null))
         {
             _viewModel.RefreshCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control && disassemblyView.IsKeyboardFocusWithin)
+        {
+            _ = ToggleSelectedBookmarkAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.OemSemicolon && Keyboard.Modifiers == ModifierKeys.None && disassemblyView.IsKeyboardFocusWithin)
+        {
+            _ = EditSelectedMetadataAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && hexDumpView.IsKeyboardFocusWithin)
+        {
+            _ = PasteSelectedHexBytesAsync();
             e.Handled = true;
         }
     }
@@ -392,6 +410,27 @@ public partial class MemoryViewWindow : Window
             System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, disassemblyView.SelectedItems.Select(row => row.Bytes)));
     }
 
+    private async void EditMetadata_Click(object sender, RoutedEventArgs e) =>
+        await EditSelectedMetadataAsync();
+
+    private async Task EditSelectedMetadataAsync()
+    {
+        EditableMemoryMetadata current = _viewModel.GetSelectedMetadata();
+        var dialog = new MetadataEditDialog(current.Comment, current.IsBookmarked, current.Label) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await _viewModel.UpdateSelectedMetadataAsync(new EditableMemoryMetadata(
+            dialog.Comment, dialog.IsBookmarked, dialog.BookmarkLabel));
+    }
+
+    private async void ToggleBookmark_Click(object sender, RoutedEventArgs e) =>
+        await ToggleSelectedBookmarkAsync();
+
+    private async Task ToggleSelectedBookmarkAsync()
+    {
+        EditableMemoryMetadata current = _viewModel.GetSelectedMetadata();
+        await _viewModel.UpdateSelectedMetadataAsync(current with { IsBookmarked = !current.IsBookmarked });
+    }
+
     private void ToggleBreakpointContext_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel.ToggleBreakpointCommand.CanExecute(null)) _viewModel.ToggleBreakpointCommand.Execute(null);
@@ -404,17 +443,42 @@ public partial class MemoryViewWindow : Window
 
     private void CopyHexByte_Click(object sender, RoutedEventArgs e)
     {
-        if (hexDumpView.SelectedByteValue is byte value) System.Windows.Clipboard.SetText(value.ToString("X2"));
+        byte[] bytes = hexDumpView.SelectedRangeBytes;
+        if (bytes.Length > 0) System.Windows.Clipboard.SetText(string.Join(' ', bytes.Select(value => value.ToString("X2"))));
     }
 
     private void CopyHexAddress_Click(object sender, RoutedEventArgs e)
     {
-        if (hexDumpView.SelectedByteAddress is ulong address) System.Windows.Clipboard.SetText($"{address:X16}");
+        if (hexDumpView.SelectedRangeAddress is ulong address) System.Windows.Clipboard.SetText($"{address:X16}");
+    }
+
+    private async void EditHexBytes_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address) return;
+        byte[] selected = hexDumpView.SelectedRangeBytes;
+        if (selected.Length == 0) return;
+        var dialog = new TextEntryDialog(
+            "Edit memory bytes",
+            "Enter exactly the replacement bytes in hexadecimal:",
+            string.Join(' ', selected.Select(value => value.ToString("X2")))) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await _viewModel.ApplyHexPatchTextAsync(address, selected, dialog.Value);
+    }
+
+    private async void PasteHexBytes_Click(object sender, RoutedEventArgs e) =>
+        await PasteSelectedHexBytesAsync();
+
+    private async Task PasteSelectedHexBytesAsync()
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address || !System.Windows.Clipboard.ContainsText()) return;
+        byte[] available = hexDumpView.GetAvailableBytesFromSelection();
+        if (available.Length == 0) return;
+        await _viewModel.ApplyHexPatchTextAsync(address, available, System.Windows.Clipboard.GetText());
     }
 
     private async void GoToHexAddress_Click(object sender, RoutedEventArgs e)
     {
-        if (hexDumpView.SelectedByteAddress is ulong address) await _viewModel.NavigateToAddressAsync(address);
+        if (hexDumpView.SelectedRangeAddress is ulong address) await _viewModel.NavigateToAddressAsync(address);
     }
 
     private static MemoryViewComposition CreateComposition(ProcessAccess process)
@@ -443,6 +507,7 @@ public partial class MemoryViewWindow : Window
             patches,
             breakpoints,
             modules,
+            metadata,
             new ProcessThreadService(process),
             new ProcessMemoryMapService(process));
     }
@@ -457,11 +522,12 @@ public partial class MemoryViewWindow : Window
         IPatchService PatchService,
         BreakpointService BreakpointService,
         IModuleService ModuleService,
+        IEditableMemoryMetadataService MetadataService,
         IThreadService ThreadService,
         IMemoryMapService MemoryMapService);
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,
-            "CrxMem Memory View WPF Preview\n\nInspection, native debugging, owned breakpoints, verified byte patches, and synchronized tool panels are available. Free-form assembly remains gated.",
+            "CrxMem Memory View\n\nInspection, native debugging, verified patches and assembly, versioned metadata, and synchronized tool panels are available.",
             "About Memory View", MessageBoxButton.OK, MessageBoxImage.Information);
 }
