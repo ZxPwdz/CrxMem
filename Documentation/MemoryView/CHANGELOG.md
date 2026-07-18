@@ -1,5 +1,31 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 10 synchronized tool panels
+
+### Features added or repaired
+
+- Added live software/hardware breakpoint manager tabs with hit counts, state, module identity, hardware address/access/size creation, and selected-entry controls.
+- Added a bounded memory-map projection with base/end/size/protection/state/type data from real `VirtualQueryEx` enumeration.
+- Added patch history, module, and thread panels from their service boundaries.
+- Added an explicitly labelled heuristic call-stack panel derived from selected-thread stack values; it does not claim unwind accuracy.
+- Added double-click navigation from software breakpoints, memory regions, patches, modules, and heuristic frames.
+- Kept panel loading cancellable and avoided re-enumerating static module/map data on every navigation.
+
+### Tests added
+
+- Added panel projection, heuristic-label, patch-state, one-time memory-map loading, module, and thread tests.
+- WPF resource/window construction tests cover the expanded panel XAML.
+
+### Known issues
+
+- Call stack entries are stack-scan heuristics; native unwind metadata and symbols remain future work.
+- Memory-map filtering, sorting presets, and live region refresh controls are not yet exposed.
+- Hardware breakpoints are session-scoped and conditions/thread filters remain unavailable.
+
+### Next recommended task
+
+Phase 11: profile, improve accessibility/DPI behavior, and complete layout/pane persistence.
+
 ## 2026-07-18 — Phase 9 owned breakpoints and debug commands
 
 ### Features added or repaired

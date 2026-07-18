@@ -47,13 +47,20 @@ public sealed class ProcessThreadService : IThreadService
     private readonly ProcessAccess _process;
     public ProcessThreadService(ProcessAccess process) => _process = process;
 
-    public IReadOnlyList<ThreadDescriptor> GetThreads() => _process.GetThreads()
-        .Select(thread => new ThreadDescriptor(
-            thread.Id,
-            unchecked((ulong)thread.StartAddress.ToInt64()),
-            thread.Priority,
-            thread.State))
-        .ToArray();
+    public IReadOnlyList<ThreadDescriptor> GetThreads()
+    {
+        try
+        {
+            return _process.GetThreads()
+                .Select(thread => new ThreadDescriptor(
+                    thread.Id,
+                    unchecked((ulong)thread.StartAddress.ToInt64()),
+                    thread.Priority,
+                    thread.State))
+                .ToArray();
+        }
+        catch { return Array.Empty<ThreadDescriptor>(); }
+    }
 }
 
 public sealed record RegisterValue(string Name, ulong Value, ulong? PreviousValue = null)

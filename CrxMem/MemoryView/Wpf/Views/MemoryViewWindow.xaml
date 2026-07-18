@@ -201,9 +201,99 @@
                                 </DataGrid>
                             </Grid>
                         </TabItem>
-                        <TabItem Header="Breakpoints" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Requires the breakpoint service"/>
-                        <TabItem Header="Call Stack" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Call-stack unwinding is not implemented"/>
-                        <TabItem Header="Memory Map" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="WPF memory-map panel is planned"/>
+                        <TabItem Header="Breakpoints">
+                            <TabControl>
+                                <TabItem Header="Software">
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <DataGrid ItemsSource="{Binding Breakpoints}" SelectedItem="{Binding SelectedBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Address" Binding="{Binding Address, StringFormat={}{0:X16}}" Width="155"/>
+                                                <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="90"/>
+                                                <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="65"/>
+                                                <DataGridTextColumn Header="Hits" Binding="{Binding HitCount}" Width="55"/>
+                                                <DataGridTextColumn Header="Module" Binding="{Binding ModuleName}" Width="*"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <Button Grid.Row="1" Content="Toggle Selected" Command="{Binding ToggleSelectedBreakpointCommand}" HorizontalAlignment="Right" Margin="6"/>
+                                    </Grid>
+                                </TabItem>
+                                <TabItem Header="Hardware">
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <StackPanel Orientation="Horizontal" Margin="6">
+                                            <TextBox Width="145" Text="{Binding HardwareBreakpointAddress, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}"/>
+                                            <ComboBox Width="90" Margin="5,0" ItemsSource="{Binding HardwareAccessOptions}" SelectedItem="{Binding HardwareBreakpointAccess}"/>
+                                            <ComboBox Width="75" ItemsSource="{Binding HardwareSizeOptions}" SelectedItem="{Binding HardwareBreakpointSize}"/>
+                                            <Button Content="Add" Command="{Binding SetHardwareBreakpointCommand}" Margin="5,0,0,0"/>
+                                        </StackPanel>
+                                        <DataGrid Grid.Row="1" ItemsSource="{Binding HardwareBreakpoints}" SelectedItem="{Binding SelectedHardwareBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Slot" Binding="{Binding Slot, StringFormat=DR{0}}" Width="50"/>
+                                                <DataGridTextColumn Header="Address" Binding="{Binding Address, StringFormat={}{0:X16}}" Width="155"/>
+                                                <DataGridTextColumn Header="Access" Binding="{Binding Access}" Width="90"/>
+                                                <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="70"/>
+                                                <DataGridTextColumn Header="Hits" Binding="{Binding HitCount}" Width="*"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <Button Grid.Row="2" Content="Clear Selected" Command="{Binding ClearHardwareBreakpointCommand}" HorizontalAlignment="Right" Margin="6"/>
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
+                        </TabItem>
+                        <TabItem Header="Call Stack">
+                            <DataGrid ItemsSource="{Binding CallStackFrames}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="38"/>
+                                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
+                                    <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*"/>
+                                    <DataGridTextColumn Header="Confidence" Binding="{Binding Confidence}" Width="210"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                        <TabItem Header="Memory Map">
+                            <DataGrid ItemsSource="{Binding MemoryMap}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Base" Binding="{Binding BaseAddress}" Width="155"/>
+                                    <DataGridTextColumn Header="End" Binding="{Binding EndAddress}" Width="155"/>
+                                    <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="90"/>
+                                    <DataGridTextColumn Header="Protection" Binding="{Binding Protection}" Width="110"/>
+                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="85"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                        <TabItem Header="Patches">
+                            <DataGrid ItemsSource="{Binding PatchHistory}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
+                                    <DataGridTextColumn Header="Original" Binding="{Binding Original}" Width="130"/>
+                                    <DataGridTextColumn Header="Patched" Binding="{Binding Patched}" Width="130"/>
+                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="75"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                        <TabItem Header="Modules">
+                            <DataGrid ItemsSource="{Binding Modules}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="Base" Binding="{Binding BaseAddress}" Width="155"/>
+                                    <DataGridTextColumn Header="End" Binding="{Binding EndAddress}" Width="155"/>
+                                    <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="90"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+                        <TabItem Header="Threads">
+                            <DataGrid ItemsSource="{Binding Threads}" AutoGenerateColumns="False" IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="TID" Binding="{Binding ThreadId}" Width="75"/>
+                                    <DataGridTextColumn Header="Start" Binding="{Binding StartAddress, StringFormat={}{0:X16}}" Width="155"/>
+                                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="75"/>
+                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
                     </TabControl>
                     <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
                     <Border Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using CrxMem.Core;
+using CrxMem.MemoryView.Wpf.Models;
 using CrxMem.MemoryView.Wpf.Services;
 using CrxMem.MemoryView.Wpf.ViewModels;
 
@@ -28,7 +29,10 @@ public partial class MemoryViewWindow : Window
             composition.WatchService,
             composition.PatchService,
             composition.BreakpointService,
-            composition.BreakpointService)
+            composition.BreakpointService,
+            composition.ModuleService,
+            composition.ThreadService,
+            composition.MemoryMapService)
     {
     }
 
@@ -42,7 +46,10 @@ public partial class MemoryViewWindow : Window
         IWatchService? watchService = null,
         IPatchService? patchService = null,
         IBreakpointService? breakpointService = null,
-        IDebugExecutionService? executionService = null)
+        IDebugExecutionService? executionService = null,
+        IModuleService? moduleService = null,
+        IThreadService? threadService = null,
+        IMemoryMapService? memoryMapService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
@@ -55,7 +62,10 @@ public partial class MemoryViewWindow : Window
             watchService: watchService,
             patchService: patchService,
             breakpointService: breakpointService,
-            executionService: executionService);
+            executionService: executionService,
+            moduleService: moduleService,
+            threadService: threadService,
+            memoryMapService: memoryMapService);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
@@ -149,6 +159,21 @@ public partial class MemoryViewWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+    private async void PanelGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.DataGrid grid) return;
+        ulong address = grid.SelectedItem switch
+        {
+            BreakpointRecord row => row.Address,
+            MemoryMapRow row => row.RuntimeAddress,
+            PatchHistoryRow row => row.RuntimeAddress,
+            ModulePanelRow row => row.RuntimeAddress,
+            CallStackPanelRow row => row.RuntimeAddress,
+            _ => 0
+        };
+        if (address != 0) await _viewModel.NavigateToAddressAsync(address);
+    }
+
     private static MemoryViewComposition CreateComposition(ProcessAccess process)
     {
         var memory = new ProcessMemoryService(process);
@@ -171,7 +196,10 @@ public partial class MemoryViewWindow : Window
             new StackService(memory, modules),
             new WatchService(new AddressExpressionService(memory, modules), memory),
             patches,
-            breakpoints);
+            breakpoints,
+            modules,
+            new ProcessThreadService(process),
+            new ProcessMemoryMapService(process));
     }
 
     private sealed record MemoryViewComposition(
@@ -182,10 +210,13 @@ public partial class MemoryViewWindow : Window
         IStackService StackService,
         IWatchService WatchService,
         IPatchService PatchService,
-        BreakpointService BreakpointService);
+        BreakpointService BreakpointService,
+        IModuleService ModuleService,
+        IThreadService ThreadService,
+        IMemoryMapService MemoryMapService);
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,
-            "CrxMem Memory View WPF Preview\n\nInspection, native debug-state capture, and verified byte patch transactions are available. Assembly and breakpoint commands remain gated.",
+            "CrxMem Memory View WPF Preview\n\nInspection, native debugging, owned breakpoints, verified byte patches, and synchronized tool panels are available. Free-form assembly remains gated.",
             "About Memory View", MessageBoxButton.OK, MessageBoxImage.Information);
 }

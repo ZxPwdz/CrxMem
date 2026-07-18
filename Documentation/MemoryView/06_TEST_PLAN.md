@@ -95,6 +95,8 @@ Implemented in Phase 9: software insertion/restoration/IP correction/reinsertion
 
 ## Hex, stack, watch, and memory map
 
+Phase 10 adds real memory-map/module/thread projections, patch/breakpoint panels, one-time static-panel loading, double-click navigation, and explicitly heuristic call-stack projection coverage.
+
 - page/region boundaries and partial rows;
 - selection across pages;
 - high/low nibble entry state;

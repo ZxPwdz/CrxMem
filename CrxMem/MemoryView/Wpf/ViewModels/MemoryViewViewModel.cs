@@ -18,6 +18,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IPatchService? _patchService;
     private readonly IBreakpointService? _breakpointService;
     private readonly IDebugExecutionService? _executionService;
+    private readonly IModuleService? _moduleService;
+    private readonly IThreadService? _threadService;
+    private readonly IMemoryMapService? _memoryMapService;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -37,6 +40,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _stepOutCommand;
     private readonly AsyncRelayCommand _runToCursorCommand;
     private readonly AsyncRelayCommand _runUntilReturnCommand;
+    private readonly AsyncRelayCommand _toggleSelectedBreakpointCommand;
+    private readonly AsyncRelayCommand _setHardwareBreakpointCommand;
+    private readonly AsyncRelayCommand _clearHardwareBreakpointCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -60,6 +66,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _patchBytes = string.Empty;
     private bool _padPatchWithNops = true;
     private ulong _moduleBaseAddress;
+    private bool _processPanelsLoaded;
+    private BreakpointRecord? _selectedBreakpoint;
+    private HardwareBreakpointRecord? _selectedHardwareBreakpoint;
+    private string _hardwareBreakpointAddress = string.Empty;
+    private HardwareBreakpointAccess _hardwareBreakpointAccess = HardwareBreakpointAccess.Execute;
+    private HardwareBreakpointSize _hardwareBreakpointSize = HardwareBreakpointSize.Byte1;
 
     public MemoryViewViewModel(
         IMemoryViewDataService dataService,
@@ -70,7 +82,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IWatchService? watchService = null,
         IPatchService? patchService = null,
         IBreakpointService? breakpointService = null,
-        IDebugExecutionService? executionService = null)
+        IDebugExecutionService? executionService = null,
+        IModuleService? moduleService = null,
+        IThreadService? threadService = null,
+        IMemoryMapService? memoryMapService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
@@ -81,6 +96,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _patchService = patchService;
         _breakpointService = breakpointService;
         _executionService = executionService;
+        _moduleService = moduleService;
+        _threadService = threadService;
+        _memoryMapService = memoryMapService;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
@@ -108,6 +126,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _stepOutCommand = new AsyncRelayCommand(StepOutAsync, CanUsePausedExecutionCommand);
         _runToCursorCommand = new AsyncRelayCommand(RunToCursorAsync, CanUsePausedExecutionCommand);
         _runUntilReturnCommand = new AsyncRelayCommand(RunUntilReturnAsync, CanUsePausedExecutionCommand);
+        _toggleSelectedBreakpointCommand = new AsyncRelayCommand(ToggleSelectedBreakpointAsync,
+            () => CanUsePausedExecutionCommand() && SelectedBreakpoint != null);
+        _setHardwareBreakpointCommand = new AsyncRelayCommand(SetHardwareBreakpointAsync,
+            () => CanUsePausedExecutionCommand() && TryParseAddress(HardwareBreakpointAddress, out _));
+        _clearHardwareBreakpointCommand = new AsyncRelayCommand(ClearHardwareBreakpointAsync,
+            () => CanUsePausedExecutionCommand() && SelectedHardwareBreakpoint != null);
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
@@ -117,6 +141,15 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<RegisterValue> Registers { get; } = new();
     public ObservableCollection<StackPreviewRow> StackRows { get; } = new();
     public ObservableCollection<WatchPreviewRow> Watches { get; } = new();
+    public ObservableCollection<BreakpointRecord> Breakpoints { get; } = new();
+    public ObservableCollection<HardwareBreakpointRecord> HardwareBreakpoints { get; } = new();
+    public ObservableCollection<PatchHistoryRow> PatchHistory { get; } = new();
+    public ObservableCollection<MemoryMapRow> MemoryMap { get; } = new();
+    public ObservableCollection<ModulePanelRow> Modules { get; } = new();
+    public ObservableCollection<ThreadDescriptor> Threads { get; } = new();
+    public ObservableCollection<CallStackPanelRow> CallStackFrames { get; } = new();
+    public IReadOnlyList<HardwareBreakpointAccess> HardwareAccessOptions { get; } = Enum.GetValues<HardwareBreakpointAccess>();
+    public IReadOnlyList<HardwareBreakpointSize> HardwareSizeOptions { get; } = Enum.GetValues<HardwareBreakpointSize>();
     public ICommand NavigateCommand => _navigateCommand;
     public AsyncRelayCommand RefreshCommand { get; }
     public ICommand BackCommand => _backCommand;
@@ -136,6 +169,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand StepOutCommand => _stepOutCommand;
     public ICommand RunToCursorCommand => _runToCursorCommand;
     public ICommand RunUntilReturnCommand => _runUntilReturnCommand;
+    public ICommand ToggleSelectedBreakpointCommand => _toggleSelectedBreakpointCommand;
+    public ICommand SetHardwareBreakpointCommand => _setHardwareBreakpointCommand;
+    public ICommand ClearHardwareBreakpointCommand => _clearHardwareBreakpointCommand;
 
     public string AddressExpression
     {
@@ -174,6 +210,36 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         set => SetField(ref _padPatchWithNops, value);
     }
 
+    public BreakpointRecord? SelectedBreakpoint
+    {
+        get => _selectedBreakpoint;
+        set { if (SetField(ref _selectedBreakpoint, value)) _toggleSelectedBreakpointCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public HardwareBreakpointRecord? SelectedHardwareBreakpoint
+    {
+        get => _selectedHardwareBreakpoint;
+        set { if (SetField(ref _selectedHardwareBreakpoint, value)) _clearHardwareBreakpointCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public string HardwareBreakpointAddress
+    {
+        get => _hardwareBreakpointAddress;
+        set { if (SetField(ref _hardwareBreakpointAddress, value)) _setHardwareBreakpointCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public HardwareBreakpointAccess HardwareBreakpointAccess
+    {
+        get => _hardwareBreakpointAccess;
+        set => SetField(ref _hardwareBreakpointAccess, value);
+    }
+
+    public HardwareBreakpointSize HardwareBreakpointSize
+    {
+        get => _hardwareBreakpointSize;
+        set => SetField(ref _hardwareBreakpointSize, value);
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -201,6 +267,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(SelectedInstructionText));
             OnPropertyChanged(nameof(SelectedInstructionComment));
             PatchBytes = value?.Bytes ?? string.Empty;
+            HardwareBreakpointAddress = value?.RuntimeAddress.ToString("X") ?? string.Empty;
             RaisePatchCanExecuteChanged();
             RaiseExecutionCanExecuteChanged();
         }
@@ -285,6 +352,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (generation != Interlocked.Read(ref _navigationGeneration)) return;
             Apply(snapshot);
+            await RefreshProcessPanelsAsync(cancellationToken);
             await RefreshWatchesAsync();
             AddressExpression = expression;
             if (selectedAddress.HasValue)
@@ -433,6 +501,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             (snapshot.State == DebugSessionState.Running ? "Target running" : "Debugger detached");
         Status = snapshot.Error ?? $"Debugger: {snapshot.State}";
         RaiseDebugCanExecuteChanged();
+        RaiseExecutionCanExecuteChanged();
+        RefreshThreadPanel();
+        RefreshBreakpointPanels();
 
         if (!snapshot.CanReadThreadContext || _registerService == null) return;
         RegisterSnapshot? previous = HasRegisterSnapshot && Registers.Count > 0
@@ -474,6 +545,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         if (_lastRegisterSnapshot != snapshot) return;
         StackRows.Clear();
         foreach (StackPreviewRow row in rows) StackRows.Add(row);
+        CallStackFrames.Clear();
+        foreach (CallStackPanelRow row in rows.ToHeuristicCallStack()) CallStackFrames.Add(row);
     }
 
     private async Task AddWatchAsync()
@@ -523,6 +596,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
                     ? SelectedInstruction.RuntimeAddress - _moduleBaseAddress
                     : null));
             Status = result.Message;
+            RefreshPatchHistory();
             if (result.Succeeded) await RefreshAsync();
         }
         finally
@@ -544,6 +618,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         if (_patchService == null) return;
         PatchResult result = await _patchService.UndoAsync();
         Status = result.Message;
+        RefreshPatchHistory();
         if (result.Succeeded) await RefreshAsync();
         RaisePatchCanExecuteChanged();
     }
@@ -553,6 +628,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         if (_patchService == null) return;
         PatchResult result = await _patchService.RedoAsync();
         Status = result.Message;
+        RefreshPatchHistory();
         if (result.Succeeded) await RefreshAsync();
         RaisePatchCanExecuteChanged();
     }
@@ -599,6 +675,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
                     ? SelectedInstruction.RuntimeAddress - _moduleBaseAddress
                     : null);
             ApplyBreakpointMarkers();
+            RefreshBreakpointPanels();
             Status = _breakpointService.HasEnabledBreakpoint(SelectedInstruction.RuntimeAddress)
                 ? $"Breakpoint enabled at 0x{SelectedInstruction.RuntimeAddress:X}."
                 : $"Breakpoint disabled at 0x{SelectedInstruction.RuntimeAddress:X}.";
@@ -664,6 +741,70 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
                 ?? SelectedInstruction;
     }
 
+    public async Task NavigateToAddressAsync(ulong address)
+    {
+        if (address == 0) return;
+        string expression = address.ToString("X");
+        AddressExpression = expression;
+        await NavigateAsync(address, expression, addToHistory: true);
+    }
+
+    private async Task RefreshProcessPanelsAsync(CancellationToken cancellationToken)
+    {
+        if (!_processPanelsLoaded)
+        {
+            if (_moduleService != null)
+            {
+                Modules.Clear();
+                foreach (ModulePanelRow module in _moduleService.GetModules().Select(item => item.ToPanelRow()))
+                    Modules.Add(module);
+            }
+            if (_memoryMapService != null)
+            {
+                IReadOnlyList<MemoryMapRow> regions = await _memoryMapService.GetRegionsAsync(cancellationToken);
+                MemoryMap.Clear();
+                foreach (MemoryMapRow region in regions) MemoryMap.Add(region);
+            }
+            _processPanelsLoaded = true;
+        }
+        RefreshThreadPanel();
+        RefreshBreakpointPanels();
+        RefreshPatchHistory();
+    }
+
+    private void RefreshThreadPanel()
+    {
+        if (_threadService == null) return;
+        Threads.Clear();
+        foreach (ThreadDescriptor thread in _threadService.GetThreads()) Threads.Add(thread);
+    }
+
+    private void RefreshBreakpointPanels()
+    {
+        if (_breakpointService == null) return;
+        Guid? selectedSoftware = SelectedBreakpoint?.Id;
+        int? selectedHardware = SelectedHardwareBreakpoint?.Slot;
+        Breakpoints.Clear();
+        foreach (BreakpointRecord breakpoint in _breakpointService.Breakpoints) Breakpoints.Add(breakpoint);
+        HardwareBreakpoints.Clear();
+        foreach (HardwareBreakpointRecord breakpoint in _breakpointService.HardwareBreakpoints)
+            HardwareBreakpoints.Add(breakpoint);
+        SelectedBreakpoint = selectedSoftware.HasValue
+            ? Breakpoints.FirstOrDefault(item => item.Id == selectedSoftware.Value)
+            : null;
+        SelectedHardwareBreakpoint = selectedHardware.HasValue
+            ? HardwareBreakpoints.FirstOrDefault(item => item.Slot == selectedHardware.Value)
+            : null;
+    }
+
+    private void RefreshPatchHistory()
+    {
+        if (_patchService == null) return;
+        PatchHistory.Clear();
+        foreach (PatchHistoryRow patch in _patchService.History.Select(item => item.ToPanelRow()))
+            PatchHistory.Add(patch);
+    }
+
     private void RaiseExecutionCanExecuteChanged()
     {
         _toggleBreakpointCommand.RaiseCanExecuteChanged();
@@ -672,6 +813,50 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _stepOutCommand.RaiseCanExecuteChanged();
         _runToCursorCommand.RaiseCanExecuteChanged();
         _runUntilReturnCommand.RaiseCanExecuteChanged();
+        _toggleSelectedBreakpointCommand.RaiseCanExecuteChanged();
+        _setHardwareBreakpointCommand.RaiseCanExecuteChanged();
+        _clearHardwareBreakpointCommand.RaiseCanExecuteChanged();
+    }
+
+    private async Task ToggleSelectedBreakpointAsync()
+    {
+        if (_breakpointService == null || SelectedBreakpoint == null) return;
+        await _breakpointService.ToggleAsync(SelectedBreakpoint.Address);
+        ApplyBreakpointMarkers();
+        RefreshBreakpointPanels();
+    }
+
+    private async Task SetHardwareBreakpointAsync()
+    {
+        if (_breakpointService == null || !TryParseAddress(HardwareBreakpointAddress, out ulong address)) return;
+        try
+        {
+            await _breakpointService.SetHardwareAsync(
+                address, HardwareBreakpointAccess, HardwareBreakpointSize);
+            RefreshBreakpointPanels();
+            Status = $"Hardware breakpoint added at 0x{address:X}.";
+        }
+        catch (Exception ex) { Status = $"Hardware breakpoint failed: {ex.Message}"; }
+    }
+
+    private async Task ClearHardwareBreakpointAsync()
+    {
+        if (_breakpointService == null || SelectedHardwareBreakpoint == null) return;
+        try
+        {
+            await _breakpointService.ClearHardwareAsync(SelectedHardwareBreakpoint.Slot);
+            RefreshBreakpointPanels();
+            Status = "Hardware breakpoint cleared.";
+        }
+        catch (Exception ex) { Status = $"Hardware breakpoint clear failed: {ex.Message}"; }
+    }
+
+    private static bool TryParseAddress(string? text, out ulong address)
+    {
+        string value = text?.Trim() ?? string.Empty;
+        if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) value = value[2..];
+        return ulong.TryParse(value, System.Globalization.NumberStyles.HexNumber,
+            System.Globalization.CultureInfo.InvariantCulture, out address) && address != 0;
     }
 
     private void RaiseDebugCanExecuteChanged()
