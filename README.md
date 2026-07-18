@@ -1,10 +1,10 @@
-# CrxMem - Cheat Engine-inspired memory scanner
+# CrxMem - Cheat Engine-inspired memory analysis tool
 
 **Created by ZxPwd**
 
 **Discord: zxpwd**
 
-A powerful, open-source memory scanner and debugger suite for Windows, inspired by Cheat Engine. This repository contains the main application and its companion projects.
+An open-source memory scanner and analysis project for Windows, inspired by Cheat Engine. This repository contains the main application and its experimental companion projects.
 
 > [!WARNING]
 > CrxMem is pre-release research software. User-mode scanning is the primary development focus; debugger, injection, and kernel-driver features remain experimental and can destabilize target processes or Windows.
@@ -21,14 +21,16 @@ A powerful, open-source memory scanner and debugger suite for Windows, inspired 
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| **Find What Writes/Accesses** | Buggy | Detection may miss some memory accesses |
-| **Debugger** | In Development | Core functionality works, advanced features incomplete |
-| **Breakpoints** | In Development | Hardware breakpoints partially implemented |
-| **Lua Engine** | Incomplete | Core functions work, full API not yet finished |
-| **UI Improvements** | Planned | Various polish and enhancements coming |
+| **User-mode scanner** | Working, pre-release | Exact, comparison, undo, writable-region, and AOB paths have automated coverage |
+| **Memory Viewer** | Working, pre-release | Hex view, disassembly, navigation, references, modules, memory map, and export; no attached debugger yet |
+| **Native table files** | Working, pre-release | Versioned `.crxct` JSON with legacy CrxMem `.ct` JSON import |
+| **Find What Writes/Accesses** | Experimental | Detection may miss some memory accesses |
+| **Debugger and breakpoints** | Prototype | Attachment, run control, stepping, and reliable breakpoint management are not complete |
+| **Lua Engine** | Incomplete | Core functions work; the full API and monitor injection are not finished |
+| **Driver and injection tools** | Experimental | Isolated research environments only; not covered by the managed CI build |
 
 ### Upcoming Features
-- Complete debugger with full breakpoint support
+- Attached debugger with run control and breakpoint support
 - Enhanced memory access detection reliability
 - Comprehensive Lua scripting API
 - Improved pointer scanner
@@ -41,18 +43,19 @@ A powerful, open-source memory scanner and debugger suite for Windows, inspired 
 
 ## Repository Structure
 
-This repository contains three interconnected projects:
+This repository contains the managed application and two experimental native companions:
 
-```
+```text
 CrxMem/
-├── CrxMem/           # Main application - Memory scanner and debugger
-├── CrxShield/        # Kernel driver for enhanced memory access
-└── VEHDebugDll/      # VEH-based debugging DLL
+|-- CrxMem/           # Managed WPF application
+|-- CrxMem.Tests/     # Managed scanner, table, and settings tests
+|-- CrxShield/        # Experimental kernel driver
+`-- VEHDebugDll/      # Experimental VEH debugging DLL
 ```
 
 | Project | Description | Language |
 |---------|-------------|----------|
-| **CrxMem** | Main GUI application for memory scanning, editing, and debugging | C# (.NET 8.0) |
+| **CrxMem** | Main GUI application for memory scanning, editing, and analysis | C# (.NET 8.0) |
 | **CrxShield** | Windows kernel driver for kernel-level memory access | C (WDK) |
 | **VEHDebugDll** | Vectored Exception Handler DLL for usermode debugging | C++ |
 
@@ -60,7 +63,7 @@ CrxMem/
 
 ## CrxMem (Main Application)
 
-The core memory scanner and debugger with a modern dark-themed interface.
+The user-mode memory scanner and analysis application with a dark-themed WPF shell.
 
 ### Features
 - **Memory Scanning** - Multiple scan types (exact, increased, decreased, changed, unknown, etc.)
@@ -69,7 +72,7 @@ The core memory scanner and debugger with a modern dark-themed interface.
 - **Memory View** - Hex editor with disassembly
 - **PE Analysis** - Analyze executables, imports, exports
 - **Lua Scripting** - Automate tasks (work in progress)
-- **Debugging** - Hardware breakpoints, VEH debugging (work in progress)
+- **Debugging prototypes** - Hardware-breakpoint and VEH experiments (not a complete attached debugger)
 
 ### Tech Stack
 - .NET 8.0 (WPF + WinForms)
@@ -199,34 +202,31 @@ sc start CrxShield
 ## Project Details
 
 ### CrxMem Structure
-```
+```text
 CrxMem/
-├── Core/                    # Core functionality
-│   ├── MemoryScanner.cs     # Scanning engine
-│   ├── ProcessAccess.cs     # Memory read/write
-│   ├── DebugMonitor.cs      # Debugging
-│   └── PEAnalyzer.cs        # PE analysis
-├── LuaScripting/            # Lua engine
-├── MemoryView/              # Hex editor & disassembler
-├── Legacy/                  # Legacy WinForms UI
-├── Themes/                  # WPF themes
-└── MainWindow.xaml          # Main UI
+|-- Core/                    # Scanning, process access, and analysis services
+|-- LuaScripting/            # Incomplete Lua API
+|-- MemoryView/              # WinForms hex viewer and disassembler
+|-- Legacy/                  # Excluded shell retained for migration reference
+|-- Themes/                  # WPF themes
+|-- MainWindow.xaml          # Active WPF shell
+`-- SettingsWindow.xaml      # Native WPF settings UI
 ```
 
 ### CrxShield Structure
-```
+```text
 CrxShield/
-├── driver.c                 # Main driver code
-├── CrxDriverController.h    # IOCTL definitions
-└── CrxShield.inf            # Installation file
+|-- driver.c                 # Main driver code
+|-- CrxDriverController.h    # IOCTL definitions
+`-- CrxShield.inf            # Installation file
 ```
 
 ### VEHDebugDll Structure
-```
+```text
 VEHDebugDll/
-├── VEHDebug.cpp             # Main implementation
-├── VEHDebug.h               # API definitions
-└── VEHDebug.def             # DLL exports
+|-- VEHDebug.cpp             # Main implementation
+|-- VEHDebug.h               # API definitions
+`-- VEHDebug.def             # DLL exports
 ```
 
 ---

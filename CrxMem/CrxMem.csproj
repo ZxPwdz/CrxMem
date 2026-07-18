@@ -14,7 +14,7 @@
     <FileVersion>1.1.0.0</FileVersion>
     <Product>CrxMem</Product>
     <Company>CrxMem</Company>
-    <Description>Memory Scanner and Debugger</Description>
+    <Description>Memory Scanner and Analysis Tool</Description>
     <Copyright>Copyright 2025</Copyright>
   </PropertyGroup>
 

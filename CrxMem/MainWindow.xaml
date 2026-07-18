@@ -161,13 +161,16 @@
                               Click="LiveUpdates_Click"/>
                 </MenuItem>
                 <MenuItem Header="_Tools">
-                    <MenuItem Header="_Lua Engine (WPF)" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
-                    <MenuItem Header="Lua Engine (_Legacy WinForms)" Click="LuaEngine_Click"/>
-                    <Separator/>
-                    <MenuItem Header="L_UA Monitor" Click="LuaMonitor_Click"/>
+                    <MenuItem Header="_Lua Engine" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
                     <MenuItem Header="_PE Analysis" Click="PEAnalysis_Click"/>
-                    <MenuItem Header="_AC Bypass Lab" Click="ACBypassLab_Click"/>
-                    <MenuItem Header="_DLL Injection Test" Click="DllInjectionTest_Click"/>
+                    <Separator/>
+                    <MenuItem Header="E_xperimental" ToolTip="Prototype features for isolated research environments">
+                        <MenuItem Header="Lua Engine (_Legacy WinForms)" Click="LuaEngine_Click"/>
+                        <MenuItem Header="L_UA Monitor (incomplete)" Click="LuaMonitor_Click"/>
+                        <Separator/>
+                        <MenuItem Header="_Driver Research Lab" Click="ACBypassLab_Click"/>
+                        <MenuItem Header="_DLL Injection Test" Click="DllInjectionTest_Click"/>
+                    </MenuItem>
                 </MenuItem>
                 <MenuItem Header="_Settings" Click="Settings_Click"/>
                 <MenuItem Header="_Help">

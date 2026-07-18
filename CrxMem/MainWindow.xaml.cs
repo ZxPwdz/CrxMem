@@ -1500,7 +1500,7 @@ namespace CrxMem
             var form = new DllInjectionTestForm(_process);
             form.Show();
         }
-        private void About_Click(object sender, RoutedEventArgs e) { System.Windows.MessageBox.Show("CrxMem v1.1\nModern Memory Scanner & Debugger", "About"); }
+        private void About_Click(object sender, RoutedEventArgs e) { System.Windows.MessageBox.Show("CrxMem v1.1\nMemory Scanner & Analysis Tool\n\nPre-release research software", "About"); }
         private void CmbScanType_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (cmbScanType == null || txtValue == null || txtValue2 == null)
