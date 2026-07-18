@@ -1,0 +1,166 @@
+<Window x:Class="CrxMem.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CrxMem Settings"
+        Width="700" Height="720"
+        MinWidth="620" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BackgroundDarkBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Colors.xaml"/>
+                <ResourceDictionary Source="Themes/Styles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="FontSize" Value="15"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Margin" Value="0,14,0,8"/>
+            </Style>
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="NumericField" TargetType="TextBox" BasedOn="{StaticResource ModernTextBoxStyle}">
+                <Setter Property="Width" Value="120"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="TextAlignment" Value="Right"/>
+            </Style>
+            <Style x:Key="SettingsTab" TargetType="TabItem">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                <Setter Property="Background" Value="{StaticResource BackgroundCardBrush}"/>
+                <Setter Property="Padding" Value="18,8"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                        <Setter Property="Background" Value="{StaticResource BackgroundElevatedBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="2,0,0,14">
+            <TextBlock Text="Settings" FontSize="24" FontWeight="SemiBold"/>
+            <TextBlock Text="Changes are stored in a portable, versioned JSON file in your local app data."
+                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <TabControl Grid.Row="1" Background="{StaticResource BackgroundCardBrush}"
+                    BorderBrush="{StaticResource BorderDefaultBrush}">
+            <TabItem Header="General" Style="{StaticResource SettingsTab}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,4,18,18">
+                    <StackPanel>
+                        <TextBlock Text="Refresh intervals" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,3"><TextBlock Text="Address list refresh (ms)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtUpdateInterval" Style="{StaticResource NumericField}" ToolTip="50 to 60000 milliseconds"/></Grid>
+                        <Grid Margin="0,3"><TextBlock Text="Frozen value write interval (ms)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtFreezeInterval" Style="{StaticResource NumericField}" ToolTip="10 to 60000 milliseconds"/></Grid>
+                        <Grid Margin="0,3"><TextBlock Text="Found list refresh (ms)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtFoundListInterval" Style="{StaticResource NumericField}" ToolTip="50 to 60000 milliseconds"/></Grid>
+
+                        <TextBlock Text="Appearance and behavior" Style="{StaticResource SectionTitle}"/>
+                        <CheckBox x:Name="chkDarkMode" Content="Use dark theme" Margin="0,4"/>
+                        <CheckBox x:Name="chkShowSigned" Content="Show integer values as signed" Margin="0,4"/>
+                        <CheckBox x:Name="chkSimpleCopyPaste" Content="Use simple text when copying addresses" Margin="0,4"/>
+                        <CheckBox x:Name="chkSaveWindowPositions" Content="Remember window positions" Margin="0,4"/>
+                        <CheckBox x:Name="chkAskClearList" Content="Ask before clearing the list for a new process" Margin="0,4"/>
+                        <CheckBox x:Name="chkLaunchAsAdmin" Content="Request administrator rights at launch" Margin="0,4"/>
+
+                        <TextBlock Text="Automatic process attachment" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Process names (separate multiple names with semicolons)" Style="{StaticResource FieldLabel}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="txtAutoAttachProcess" Style="{StaticResource ModernTextBoxStyle}" ToolTip="Example: sample.exe;another.exe"/>
+                        <CheckBox x:Name="chkAlwaysAutoAttach" Content="Continue watching while another process is attached" Margin="0,8,0,4"/>
+                        <CheckBox x:Name="chkFastAutoAttach" Content="Enable fast automatic attachment" Margin="0,4"/>
+                        <CheckBox x:Name="chkUseWmiWatch" Content="Prefer WMI process-start events" Margin="0,4"/>
+                        <Grid Margin="0,4"><TextBlock Text="Polling fallback interval (ms)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtFastAttachInterval" Style="{StaticResource NumericField}"/></Grid>
+
+                        <Border Background="{StaticResource StatusWarningBackgroundBrush}" BorderBrush="{StaticResource StatusWarningBrush}"
+                                BorderThickness="1" CornerRadius="5" Padding="12" Margin="0,14,0,4">
+                            <StackPanel>
+                                <TextBlock Text="Experimental attachment options" Foreground="{StaticResource StatusWarningBrush}" FontWeight="SemiBold"/>
+                                <TextBlock Text="These features can destabilize the selected process. Use only in an isolated test environment."
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                                <CheckBox x:Name="chkAutoLoadDriver" Content="Load the experimental driver automatically" Margin="0,3"/>
+                                <CheckBox x:Name="chkAutoInjectVeh" Content="Inject the experimental VEH debugger automatically" Margin="0,3"/>
+                                <CheckBox x:Name="chkFastSuspendOnAttach" Content="Suspend immediately after automatic attachment" Margin="0,3"/>
+                                <Grid Margin="0,4"><TextBlock Text="Repeated suspend interval (ms, 0 disables)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtSuspendInterval" Style="{StaticResource NumericField}"/></Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Scanning" Style="{StaticResource SettingsTab}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,4,18,18">
+                    <StackPanel>
+                        <TextBlock Text="Scan engine" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,3">
+                            <TextBlock Text="Worker priority" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="cmbThreadPriority" Width="180" HorizontalAlignment="Right" Style="{StaticResource ModernComboBoxStyle}">
+                                <ComboBoxItem Content="Lowest"/><ComboBoxItem Content="Below normal"/><ComboBoxItem Content="Normal"/><ComboBoxItem Content="Above normal"/><ComboBoxItem Content="Highest"/>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Margin="0,3"><TextBlock Text="Read buffer size (KB)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtScanBufferSize" Style="{StaticResource NumericField}"/></Grid>
+                        <CheckBox x:Name="chkFastScanDefault" Content="Enable aligned fast scan by default" Margin="0,8,0,4"/>
+                        <CheckBox x:Name="chkPauseWhileScanning" Content="Pause the target while scanning" Margin="0,4"/>
+
+                        <TextBlock Text="Memory regions" Style="{StaticResource SectionTitle}"/>
+                        <CheckBox x:Name="chkMemPrivate" Content="Private memory (heap and stack)" Margin="0,4"/>
+                        <CheckBox x:Name="chkMemImage" Content="Image memory (executables and libraries)" Margin="0,4"/>
+                        <CheckBox x:Name="chkMemMapped" Content="Memory-mapped files" Margin="0,4"/>
+                        <CheckBox x:Name="chkSkipNoCache" Content="Skip non-cacheable pages" Margin="0,4"/>
+                        <CheckBox x:Name="chkSkipWriteCombine" Content="Skip write-combined pages" Margin="0,4"/>
+
+                        <TextBlock Text="Experimental driver tuning" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,3"><TextBlock Text="UI update multiplier" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtKernelMultiplier" Style="{StaticResource NumericField}"/></Grid>
+                        <Grid Margin="0,3"><TextBlock Text="Read cache lifetime (ms)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="txtKernelCacheLifetime" Style="{StaticResource NumericField}"/></Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Hotkeys" Style="{StaticResource SettingsTab}">
+                <Grid Margin="18">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Margin="0,8,0,12">
+                        <TextBlock Text="Global hotkeys" Style="{StaticResource SectionTitle}" Margin="0"/>
+                        <TextBlock Text="Select a working action, then press the desired key combination. Delete or Backspace clears it."
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                    </StackPanel>
+                    <ListView x:Name="hotkeyList" Grid.Row="1" ItemsSource="{Binding Hotkeys}" SelectionMode="Single"
+                              Background="{StaticResource BackgroundInputBrush}" Foreground="{StaticResource TextPrimaryBrush}"
+                              BorderBrush="{StaticResource BorderDefaultBrush}" PreviewKeyDown="HotkeyList_PreviewKeyDown">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Action" Width="350" DisplayMemberBinding="{Binding DisplayName}"/>
+                                <GridViewColumn Header="Hotkey" Width="180" DisplayMemberBinding="{Binding HotkeyText}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                    <DockPanel Grid.Row="2" Margin="0,10,0,0">
+                        <TextBlock Text="Only actions implemented by the WPF shell are listed."
+                                   Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                        <Button Content="Clear selected" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                Style="{StaticResource ModernButtonStyle}" Click="ClearHotkey_Click"/>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <DockPanel Grid.Row="2" Margin="0,16,0,0">
+            <TextBlock x:Name="txtSettingsPath" Foreground="{StaticResource TextMutedBrush}"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Width="88" Margin="8,0,0,0" Style="{StaticResource ModernButtonStyle}" Click="Cancel_Click" IsCancel="True"/>
+                <Button Content="Apply" Width="88" Margin="8,0,0,0" Style="{StaticResource ModernButtonStyle}" Click="Apply_Click"/>
+                <Button Content="Save" Width="88" Margin="8,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="Save_Click" IsDefault="True"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

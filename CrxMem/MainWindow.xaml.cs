@@ -1430,9 +1430,9 @@ namespace CrxMem
         private void LiveUpdates_Click(object sender, RoutedEventArgs e) => _liveUpdatesEnabled = menuLiveUpdates.IsChecked;
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var form = new SettingsForm();
-            form.SettingsApplied += SettingsForm_SettingsApplied;
-            form.ShowDialog();
+            var window = new SettingsWindow { Owner = this };
+            window.SettingsApplied += SettingsForm_SettingsApplied;
+            window.ShowDialog();
         }
 
         private void SettingsForm_SettingsApplied(object? sender, EventArgs e)
