@@ -16,7 +16,6 @@ namespace CrxMem.MemoryView.Wpf.Controls;
 
 public sealed class VirtualizedHexDumpControl : FrameworkElement
 {
-    private const double RowHeight = 21;
     private const double AddressWidth = 155;
     private const double ByteCellWidth = 24;
     private IReadOnlyList<HexPreviewRow> _items = Array.Empty<HexPreviewRow>();
@@ -35,11 +34,25 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
         nameof(ItemsSource), typeof(IEnumerable<HexPreviewRow>), typeof(VirtualizedHexDumpControl),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnItemsChanged));
 
+    public static readonly DependencyProperty RowHeightProperty = DependencyProperty.Register(
+        nameof(RowHeight), typeof(double), typeof(VirtualizedHexDumpControl),
+        new FrameworkPropertyMetadata(21d, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty CodeFontSizeProperty = DependencyProperty.Register(
+        nameof(CodeFontSize), typeof(double), typeof(VirtualizedHexDumpControl),
+        new FrameworkPropertyMetadata(12d, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty CodeFontFamilyProperty = DependencyProperty.Register(
+        nameof(CodeFontFamily), typeof(FontFamily), typeof(VirtualizedHexDumpControl),
+        new FrameworkPropertyMetadata(new FontFamily("Cascadia Mono, Consolas"), FrameworkPropertyMetadataOptions.AffectsRender));
+
     public IEnumerable<HexPreviewRow>? ItemsSource
     {
         get => (IEnumerable<HexPreviewRow>?)GetValue(ItemsSourceProperty);
         set => SetValue(ItemsSourceProperty, value);
     }
+
+    public double RowHeight { get => (double)GetValue(RowHeightProperty); set => SetValue(RowHeightProperty, value); }
+    public double CodeFontSize { get => (double)GetValue(CodeFontSizeProperty); set => SetValue(CodeFontSizeProperty, value); }
+    public FontFamily CodeFontFamily { get => (FontFamily)GetValue(CodeFontFamilyProperty); set => SetValue(CodeFontFamilyProperty, value); }
 
     public ulong? SelectedByteAddress => _selectedRow >= 0 && _selectedRow < _items.Count && _selectedByte >= 0
         ? _items[_selectedRow].RuntimeAddress + (ulong)_selectedByte
@@ -62,7 +75,7 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
         Brush changed = ResourceBrush("MemoryView.RedBrush", Colors.IndianRed);
         Brush selection = ResourceBrush("MemoryView.SelectionBackgroundBrush", Color.FromRgb(20, 83, 139));
         Brush border = ResourceBrush("MemoryView.BorderBrush", Color.FromRgb(52, 61, 69));
-        var typeface = new Typeface(new FontFamily("Cascadia Mono, Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var typeface = new Typeface(CodeFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         context.DrawRectangle(background, null, new Rect(RenderSize));
 
         int count = Math.Min(VisibleRowCapacity + 1, Math.Max(0, _items.Count - _firstVisibleRow));
@@ -145,13 +158,13 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
         .ToArray();
 
     private Brush ResourceBrush(string key, Color fallback) => TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
-    private static void DrawText(DrawingContext context, string text, double x, double y, Brush brush, Typeface typeface) =>
+    private void DrawText(DrawingContext context, string text, double x, double y, Brush brush, Typeface typeface) =>
         context.DrawText(new FormattedText(
             text ?? string.Empty,
             System.Globalization.CultureInfo.CurrentUICulture,
             System.Windows.FlowDirection.LeftToRight,
             typeface,
-            12,
+            CodeFontSize,
             brush,
             1), new Point(x, y));
 }

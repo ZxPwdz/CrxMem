@@ -121,6 +121,8 @@ public sealed class MemoryViewWpfTests
 
                 var renderer = new VirtualizedDisassemblyControl
                 {
+                    CodeFontSize = 15,
+                    RowHeight = 25,
                     ItemsSource = Enumerable.Range(0, 1000)
                         .Select(index => new DisassemblyPreviewRow(
                             "", index.ToString("X16"), "90", "nop", "", (ulong)index))
@@ -132,9 +134,13 @@ public sealed class MemoryViewWpfTests
                 bitmap.Render(renderer);
                 Assert.InRange(renderer.LastRenderedRowCount, 1, renderer.VisibleRowCapacity);
                 Assert.True(renderer.ExtentHeight > renderer.ViewportHeight);
+                Assert.Equal(15, renderer.CodeFontSize);
+                Assert.Equal(25, renderer.RowHeight);
 
                 var hexRenderer = new VirtualizedHexDumpControl
                 {
+                    CodeFontSize = 14,
+                    RowHeight = 24,
                     ItemsSource = Enumerable.Range(0, 1000)
                         .Select(index => new HexPreviewRow(
                             index.ToString("X16"), "00", ".", (ulong)index, new byte[] { 0 }))
@@ -145,6 +151,16 @@ public sealed class MemoryViewWpfTests
                 var hexBitmap = new RenderTargetBitmap(800, 250, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
                 hexBitmap.Render(hexRenderer);
                 Assert.InRange(hexRenderer.LastRenderedRowCount, 1, hexRenderer.VisibleRowCapacity + 1);
+                Assert.Equal(14, hexRenderer.CodeFontSize);
+                Assert.Equal(24, hexRenderer.RowHeight);
+
+                foreach (double dpi in new[] { 96d, 120d, 144d, 192d })
+                {
+                    var dpiBitmap = new RenderTargetBitmap(900, 300, dpi, dpi, System.Windows.Media.PixelFormats.Pbgra32);
+                    dpiBitmap.Render(renderer);
+                    Assert.Equal(900, dpiBitmap.PixelWidth);
+                    Assert.Equal(300, dpiBitmap.PixelHeight);
+                }
             }
             catch (Exception ex)
             {

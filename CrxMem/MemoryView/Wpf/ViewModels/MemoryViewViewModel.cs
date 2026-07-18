@@ -502,7 +502,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         Status = snapshot.Error ?? $"Debugger: {snapshot.State}";
         RaiseDebugCanExecuteChanged();
         RaiseExecutionCanExecuteChanged();
-        RefreshThreadPanel();
+        await RefreshThreadPanelAsync(CancellationToken.None);
         RefreshBreakpointPanels();
 
         if (!snapshot.CanReadThreadContext || _registerService == null) return;
@@ -755,8 +755,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         {
             if (_moduleService != null)
             {
+                IReadOnlyList<ModuleDescriptor> loadedModules = await Task.Run(
+                    _moduleService.GetModules, cancellationToken);
                 Modules.Clear();
-                foreach (ModulePanelRow module in _moduleService.GetModules().Select(item => item.ToPanelRow()))
+                foreach (ModulePanelRow module in loadedModules.Select(item => item.ToPanelRow()))
                     Modules.Add(module);
             }
             if (_memoryMapService != null)
@@ -767,16 +769,18 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             }
             _processPanelsLoaded = true;
         }
-        RefreshThreadPanel();
+        await RefreshThreadPanelAsync(cancellationToken);
         RefreshBreakpointPanels();
         RefreshPatchHistory();
     }
 
-    private void RefreshThreadPanel()
+    private async Task RefreshThreadPanelAsync(CancellationToken cancellationToken)
     {
         if (_threadService == null) return;
+        IReadOnlyList<ThreadDescriptor> loadedThreads = await Task.Run(
+            _threadService.GetThreads, cancellationToken);
         Threads.Clear();
-        foreach (ThreadDescriptor thread in _threadService.GetThreads()) Threads.Add(thread);
+        foreach (ThreadDescriptor thread in loadedThreads) Threads.Add(thread);
     }
 
     private void RefreshBreakpointPanels()

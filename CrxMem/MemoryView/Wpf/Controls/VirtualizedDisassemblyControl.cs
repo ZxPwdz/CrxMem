@@ -20,7 +20,6 @@ namespace CrxMem.MemoryView.Wpf.Controls;
 public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInfo
 {
     private const double HeaderHeight = 27;
-    private const double RowHeight = 21;
     private const double GutterWidth = 38;
     private const double AddressWidth = 150;
     private const double BytesWidth = 210;
@@ -48,6 +47,18 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
             FrameworkPropertyMetadataOptions.BindsTwoWayByDefault | FrameworkPropertyMetadataOptions.AffectsRender,
             OnSelectedItemChanged));
 
+    public static readonly DependencyProperty RowHeightProperty = DependencyProperty.Register(
+        nameof(RowHeight), typeof(double), typeof(VirtualizedDisassemblyControl),
+        new FrameworkPropertyMetadata(21d, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty CodeFontSizeProperty = DependencyProperty.Register(
+        nameof(CodeFontSize), typeof(double), typeof(VirtualizedDisassemblyControl),
+        new FrameworkPropertyMetadata(12d, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty CodeFontFamilyProperty = DependencyProperty.Register(
+        nameof(CodeFontFamily), typeof(FontFamily), typeof(VirtualizedDisassemblyControl),
+        new FrameworkPropertyMetadata(new FontFamily("Cascadia Mono, Consolas"), FrameworkPropertyMetadataOptions.AffectsRender));
+
     public IEnumerable<DisassemblyPreviewRow>? ItemsSource
     {
         get => (IEnumerable<DisassemblyPreviewRow>?)GetValue(ItemsSourceProperty);
@@ -59,6 +70,10 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
         get => (DisassemblyPreviewRow?)GetValue(SelectedItemProperty);
         set => SetValue(SelectedItemProperty, value);
     }
+
+    public double RowHeight { get => (double)GetValue(RowHeightProperty); set => SetValue(RowHeightProperty, value); }
+    public double CodeFontSize { get => (double)GetValue(CodeFontSizeProperty); set => SetValue(CodeFontSizeProperty, value); }
+    public FontFamily CodeFontFamily { get => (FontFamily)GetValue(CodeFontFamilyProperty); set => SetValue(CodeFontFamilyProperty, value); }
 
     public int VisibleRowCapacity => Math.Max(0, (int)Math.Ceiling(Math.Max(0, ActualHeight - HeaderHeight) / RowHeight) + 1);
     public int LastRenderedRowCount { get; private set; }
@@ -94,7 +109,7 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
         int first = Math.Max(0, (int)Math.Floor(_verticalOffset / RowHeight));
         int count = Math.Min(_items.Count - first, Math.Max(0, (int)Math.Ceiling(dataHeight / RowHeight) + 1));
         LastRenderedRowCount = count;
-        var typeface = new Typeface(new FontFamily("Cascadia Mono, Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var typeface = new Typeface(CodeFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
 
         for (int visible = 0; visible < count; visible++)
         {
@@ -261,10 +276,10 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
         ((VirtualizedDisassemblyControl)sender).InvalidateVisual();
 
     private Brush ResourceBrush(string key, Color fallback) => TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
-    private static FormattedText CreateText(string text, Brush brush, Typeface typeface) => new(
+    private FormattedText CreateText(string text, Brush brush, Typeface typeface) => new(
         text ?? string.Empty, System.Globalization.CultureInfo.CurrentUICulture,
-        System.Windows.FlowDirection.LeftToRight, typeface, 12, brush, 1);
-    private static void DrawText(DrawingContext context, string text, double x, double y, Brush brush, Typeface typeface) =>
+        System.Windows.FlowDirection.LeftToRight, typeface, CodeFontSize, brush, 1);
+    private void DrawText(DrawingContext context, string text, double x, double y, Brush brush, Typeface typeface) =>
         context.DrawText(CreateText(text, brush, typeface), new Point(x, y));
 
     private void UpdateScrollInfo(Size viewport)

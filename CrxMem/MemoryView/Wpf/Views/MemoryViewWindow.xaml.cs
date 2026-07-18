@@ -12,6 +12,10 @@ public partial class MemoryViewWindow : Window
     private readonly ulong _startAddress;
     private readonly MemoryViewViewModel _viewModel;
     private readonly IMemoryViewLayoutStore _layoutStore;
+    private double _visibleInspectorWidth = 350;
+    private double _visiblePatchEditorWidth = 350;
+    private double _codeFontSize = 12;
+    private double _rowHeight = 21;
 
     public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default)
         : this(CreateComposition(process), startAddress)
@@ -114,10 +118,22 @@ public partial class MemoryViewWindow : Window
     {
         Width = Math.Clamp(settings.WindowWidth, MinWidth, 3840);
         Height = Math.Clamp(settings.WindowHeight, MinHeight, 2160);
-        inspectorColumn.Width = new GridLength(Math.Clamp(settings.InspectorWidth, 280, 900));
+        _visibleInspectorWidth = Math.Clamp(settings.InspectorWidth, 280, 900);
+        _visiblePatchEditorWidth = Math.Clamp(settings.PatchEditorWidth, 280, 900);
+        inspectorColumn.Width = new GridLength(_visibleInspectorWidth);
         bottomToolsRow.Height = new GridLength(Math.Clamp(settings.BottomToolsHeight, 160, 900));
-        patchEditorColumn.Width = new GridLength(Math.Clamp(settings.PatchEditorWidth, 280, 900));
+        patchEditorColumn.Width = new GridLength(_visiblePatchEditorWidth);
         registerPanelRow.Height = new GridLength(Math.Clamp(settings.RegisterPanelHeight, 180, 1200));
+        toolsTabControl.SelectedIndex = Math.Clamp(settings.SelectedToolTab, 0, Math.Max(0, toolsTabControl.Items.Count - 1));
+        breakpointTabControl.SelectedIndex = Math.Clamp(settings.SelectedBreakpointTab, 0, Math.Max(0, breakpointTabControl.Items.Count - 1));
+        _codeFontSize = Math.Clamp(settings.CodeFontSize, 10, 20);
+        _rowHeight = Math.Clamp(settings.RowHeight, 18, 32);
+        ApplyCodeMetrics();
+        ApplyColumnWidths(settings.ColumnWidths);
+        showInspectorMenu.IsChecked = settings.InspectorVisible;
+        showPatchEditorMenu.IsChecked = settings.PatchEditorVisible;
+        SetInspectorVisible(settings.InspectorVisible);
+        SetPatchEditorVisible(settings.PatchEditorVisible);
         _viewModel.LoadRecentExpressions(settings.RecentExpressions);
 
         if (settings.WindowLeft is double left && settings.WindowTop is double top &&
@@ -144,10 +160,17 @@ public partial class MemoryViewWindow : Window
                 WindowHeight = bounds.Height,
                 WindowLeft = bounds.Left,
                 WindowTop = bounds.Top,
-                InspectorWidth = inspectorColumn.ActualWidth,
+                InspectorWidth = showInspectorMenu.IsChecked ? inspectorColumn.ActualWidth : _visibleInspectorWidth,
                 BottomToolsHeight = bottomToolsRow.ActualHeight,
-                PatchEditorWidth = patchEditorColumn.ActualWidth,
+                PatchEditorWidth = showPatchEditorMenu.IsChecked ? patchEditorColumn.ActualWidth : _visiblePatchEditorWidth,
                 RegisterPanelHeight = registerPanelRow.ActualHeight,
+                SelectedToolTab = toolsTabControl.SelectedIndex,
+                SelectedBreakpointTab = breakpointTabControl.SelectedIndex,
+                InspectorVisible = showInspectorMenu.IsChecked,
+                PatchEditorVisible = showPatchEditorMenu.IsChecked,
+                CodeFontSize = _codeFontSize,
+                RowHeight = _rowHeight,
+                ColumnWidths = CaptureColumnWidths(),
                 RecentExpressions = _viewModel.RecentExpressions.ToList()
             });
         }
@@ -158,6 +181,94 @@ public partial class MemoryViewWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ShowInspector_Click(object sender, RoutedEventArgs e) =>
+        SetInspectorVisible(showInspectorMenu.IsChecked);
+
+    private void ShowPatchEditor_Click(object sender, RoutedEventArgs e) =>
+        SetPatchEditorVisible(showPatchEditorMenu.IsChecked);
+
+    private void SetInspectorVisible(bool visible)
+    {
+        if (!visible && inspectorColumn.ActualWidth > 0) _visibleInspectorWidth = inspectorColumn.ActualWidth;
+        inspectorColumn.Width = visible ? new GridLength(_visibleInspectorWidth) : new GridLength(0);
+        inspectorPane.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        inspectorSplitter.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SetPatchEditorVisible(bool visible)
+    {
+        if (!visible && patchEditorColumn.ActualWidth > 0) _visiblePatchEditorWidth = patchEditorColumn.ActualWidth;
+        patchEditorColumn.Width = visible ? new GridLength(_visiblePatchEditorWidth) : new GridLength(0);
+        patchEditorPane.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        patchSplitter.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void CodeFontLarger_Click(object sender, RoutedEventArgs e)
+    {
+        _codeFontSize = Math.Min(20, _codeFontSize + 1);
+        ApplyCodeMetrics();
+    }
+
+    private void CodeFontSmaller_Click(object sender, RoutedEventArgs e)
+    {
+        _codeFontSize = Math.Max(10, _codeFontSize - 1);
+        ApplyCodeMetrics();
+    }
+
+    private void DenseRows_Click(object sender, RoutedEventArgs e)
+    {
+        _rowHeight = 19;
+        ApplyCodeMetrics();
+    }
+
+    private void ComfortableRows_Click(object sender, RoutedEventArgs e)
+    {
+        _rowHeight = 25;
+        ApplyCodeMetrics();
+    }
+
+    private void ApplyCodeMetrics()
+    {
+        disassemblyView.CodeFontSize = _codeFontSize;
+        disassemblyView.RowHeight = _rowHeight;
+        hexDumpView.CodeFontSize = _codeFontSize;
+        hexDumpView.RowHeight = _rowHeight;
+    }
+
+    private IEnumerable<(string Name, System.Windows.Controls.DataGrid Grid)> TrackedGrids()
+    {
+        yield return ("Stack", stackGrid);
+        yield return ("Watch", watchGrid);
+        yield return ("SoftwareBreakpoints", softwareBreakpointsGrid);
+        yield return ("HardwareBreakpoints", hardwareBreakpointsGrid);
+        yield return ("CallStack", callStackGrid);
+        yield return ("MemoryMap", memoryMapGrid);
+        yield return ("PatchHistory", patchHistoryGrid);
+        yield return ("Modules", modulesGrid);
+        yield return ("Threads", threadsGrid);
+    }
+
+    private void ApplyColumnWidths(IReadOnlyDictionary<string, List<double>>? widths)
+    {
+        if (widths == null) return;
+        foreach ((string name, System.Windows.Controls.DataGrid grid) in TrackedGrids())
+        {
+            if (!widths.TryGetValue(name, out List<double>? values)) continue;
+            for (int index = 0; index < Math.Min(values.Count, grid.Columns.Count); index++)
+                if (double.IsFinite(values[index]) && values[index] is >= 30 and <= 2000)
+                    grid.Columns[index].Width = new System.Windows.Controls.DataGridLength(values[index]);
+        }
+    }
+
+    private Dictionary<string, List<double>> CaptureColumnWidths() => TrackedGrids()
+        .ToDictionary(
+            item => item.Name,
+            item => item.Grid.Columns
+                .Select(column => double.IsFinite(column.ActualWidth)
+                    ? Math.Clamp(column.ActualWidth, 30, 2000)
+                    : 100)
+                .ToList());
 
     private async void PanelGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {

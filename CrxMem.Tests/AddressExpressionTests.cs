@@ -179,9 +179,16 @@ public sealed class MemoryViewLayoutStoreTests : IDisposable
         var settings = new MemoryViewLayoutSettings
         {
             WindowWidth = 1500,
-            WindowHeight = 900,
-            InspectorWidth = 420,
-            RecentExpressions = new List<string> { "Target.exe+1000", "", "target.exe+1000", "2000" }
+              WindowHeight = 900,
+              InspectorWidth = 420,
+              SelectedToolTab = 4,
+              SelectedBreakpointTab = 1,
+              InspectorVisible = false,
+              PatchEditorVisible = false,
+              CodeFontSize = 15,
+              RowHeight = 25,
+              ColumnWidths = new Dictionary<string, List<double>> { ["Threads"] = new() { 80, 160 } },
+              RecentExpressions = new List<string> { "Target.exe+1000", "", "target.exe+1000", "2000" }
         };
 
         store.Save(settings);
@@ -189,7 +196,14 @@ public sealed class MemoryViewLayoutStoreTests : IDisposable
 
         Assert.Equal(1500, loaded.WindowWidth);
         Assert.Equal(900, loaded.WindowHeight);
-        Assert.Equal(420, loaded.InspectorWidth);
+          Assert.Equal(420, loaded.InspectorWidth);
+          Assert.Equal(4, loaded.SelectedToolTab);
+          Assert.Equal(1, loaded.SelectedBreakpointTab);
+          Assert.False(loaded.InspectorVisible);
+          Assert.False(loaded.PatchEditorVisible);
+          Assert.Equal(15, loaded.CodeFontSize);
+          Assert.Equal(25, loaded.RowHeight);
+          Assert.Equal(new double[] { 80, 160 }, loaded.ColumnWidths["Threads"]);
         Assert.Equal(new[] { "Target.exe+1000", "2000" }, loaded.RecentExpressions);
     }
 

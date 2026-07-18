@@ -1,5 +1,31 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 11 performance, accessibility, and persistence
+
+### Features added or repaired
+
+- Added configurable code font size and dense/comfortable row metrics to both custom renderers.
+- Added View-menu pane visibility controls and persistence for inspector/patch panes, splitters, window placement, selected tool/breakpoint tabs, font metrics, and nine DataGrid column layouts.
+- Added visible keyboard-focus borders for buttons, tabs, text input, and grid cells, plus layout rounding/device-pixel snapping.
+- Moved module and thread enumeration off the WPF UI thread; memory-map enumeration was already asynchronous and cancellable.
+- Kept custom drawing bounded to visible rows and added a 100,000-row/200%-DPI rendering budget test.
+
+### Measurements and tests
+
+- Isolated local-target navigation after warm-up: 1.72 ms median across seven fresh-cache samples (1.11–3.40 ms), below the 250 ms engineering budget on this machine.
+- Release default suite: 89 tests passed, 0 failed in two consecutive runs.
+- Renderer tests cover 100%, 125%, 150%, and 200% bitmap DPI; the 100,000-row source renders only the viewport within a 3-second guardrail.
+- Layout round-trip tests now cover pane visibility, selected tabs, font/row metrics, and column widths.
+
+### Known issues
+
+- Primary disassembly column geometry is still fixed in the custom renderer; DataGrid-based tool columns are resizable and persisted.
+- DPI validation is automated at the renderer/layout layer; a manual multi-monitor per-monitor-DPI pass remains part of final acceptance.
+
+### Next recommended task
+
+Phase 12: run parity/acceptance review, produce the final handoff, and decide whether WPF is ready to become the default route while retaining the legacy command for one release.
+
 ## 2026-07-18 — Phase 10 synchronized tool panels
 
 ### Features added or repaired

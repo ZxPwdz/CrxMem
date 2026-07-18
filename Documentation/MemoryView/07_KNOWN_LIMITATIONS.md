@@ -41,7 +41,7 @@ The read-only WPF preview shell is available from `Tools > Memory View (WPF Prev
 - Step Out and Run Until Return use the pointer at the selected thread's current stack pointer and do not claim unwind-metadata accuracy.
 - The native debug integration test is opt-in and currently validated with a 64-bit debugger process on Windows.
 - Patch history is in memory only. Although records contain module/RVA fields, persisted module identity validation and stale-binary recovery are not implemented.
-- Basic splitter and window layout persistence is implemented; columns, selected tabs, and pane visibility remain deferred.
+- Window placement, splitters, pane visibility, selected tabs, code font/row density, recent addresses, and DataGrid tool-column widths persist. The custom disassembly renderer's internal column geometry remains fixed.
 
 ## Explicit nonclaims
 

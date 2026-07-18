@@ -5,6 +5,7 @@
         Title="CrxMem Memory View (WPF Preview)"
         Width="1360" Height="800" MinWidth="980" MinHeight="620"
         WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
         Background="{DynamicResource MemoryView.WindowBackgroundBrush}"
         Foreground="{DynamicResource MemoryView.TextPrimaryBrush}">
     <Window.InputBindings>
@@ -62,7 +63,17 @@
 
         <Menu Grid.Row="0" Padding="5,0">
             <MenuItem Header="_File"><MenuItem Header="_Close" Click="Close_Click" InputGestureText="Alt+F4"/></MenuItem>
-            <MenuItem Header="_View"><MenuItem Header="_Refresh" Command="{Binding RefreshCommand}" InputGestureText="F5"/></MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Refresh" Command="{Binding RefreshCommand}" InputGestureText="F5"/>
+                <Separator/>
+                <MenuItem x:Name="showInspectorMenu" Header="Show _Inspector" IsCheckable="True" IsChecked="True" Click="ShowInspector_Click"/>
+                <MenuItem x:Name="showPatchEditorMenu" Header="Show _Patch Editor" IsCheckable="True" IsChecked="True" Click="ShowPatchEditor_Click"/>
+                <Separator/>
+                <MenuItem Header="Code Font _Larger" Click="CodeFontLarger_Click"/>
+                <MenuItem Header="Code Font _Smaller" Click="CodeFontSmaller_Click"/>
+                <MenuItem Header="_Dense Rows" Click="DenseRows_Click"/>
+                <MenuItem Header="_Comfortable Rows" Click="ComfortableRows_Click"/>
+            </MenuItem>
             <MenuItem Header="_Debug">
                 <MenuItem Header="_Attach" Command="{Binding AttachCommand}"/>
                 <MenuItem Header="_Detach" Command="{Binding DetachCommand}"/>
@@ -135,7 +146,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*" MinWidth="580"/>
                 <ColumnDefinition Width="5"/>
-                <ColumnDefinition x:Name="inspectorColumn" Width="350" MinWidth="280"/>
+                <ColumnDefinition x:Name="inspectorColumn" Width="350" MinWidth="0"/>
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0">
@@ -161,6 +172,7 @@
                 <ScrollViewer Grid.Row="1" CanContentScroll="True"
                               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <memoryControls:VirtualizedDisassemblyControl
+                        x:Name="disassemblyView"
                         ItemsSource="{Binding Instructions}"
                         SelectedItem="{Binding SelectedInstruction, Mode=TwoWay}"/>
                 </ScrollViewer>
@@ -168,13 +180,13 @@
                 <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 
                 <Grid Grid.Row="3">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition x:Name="patchEditorColumn" Width="350" MinWidth="280"/></Grid.ColumnDefinitions>
-                    <TabControl Grid.Column="0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition x:Name="patchEditorColumn" Width="350" MinWidth="0"/></Grid.ColumnDefinitions>
+                    <TabControl x:Name="toolsTabControl" Grid.Column="0">
                         <TabItem Header="Hex Dump">
-                            <memoryControls:VirtualizedHexDumpControl ItemsSource="{Binding HexRows}"/>
+                            <memoryControls:VirtualizedHexDumpControl x:Name="hexDumpView" ItemsSource="{Binding HexRows}"/>
                         </TabItem>
                         <TabItem Header="Stack">
-                            <DataGrid ItemsSource="{Binding StackRows}" AutoGenerateColumns="False" IsReadOnly="True">
+                            <DataGrid x:Name="stackGrid" ItemsSource="{Binding StackRows}" AutoGenerateColumns="False" IsReadOnly="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
                                     <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="155"/>
@@ -191,7 +203,7 @@
                                         <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding AddWatchCommand}"/></TextBox.InputBindings>
                                     </TextBox>
                                 </DockPanel>
-                                <DataGrid Grid.Row="1" ItemsSource="{Binding Watches}" AutoGenerateColumns="False" IsReadOnly="True">
+                                <DataGrid x:Name="watchGrid" Grid.Row="1" ItemsSource="{Binding Watches}" AutoGenerateColumns="False" IsReadOnly="True">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Expression" Binding="{Binding Expression}" Width="*"/>
                                         <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="145"/>
@@ -202,11 +214,11 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="Breakpoints">
-                            <TabControl>
+                            <TabControl x:Name="breakpointTabControl">
                                 <TabItem Header="Software">
                                     <Grid>
                                         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                        <DataGrid ItemsSource="{Binding Breakpoints}" SelectedItem="{Binding SelectedBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                                        <DataGrid x:Name="softwareBreakpointsGrid" ItemsSource="{Binding Breakpoints}" SelectedItem="{Binding SelectedBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Address" Binding="{Binding Address, StringFormat={}{0:X16}}" Width="155"/>
                                                 <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="90"/>
@@ -227,7 +239,7 @@
                                             <ComboBox Width="75" ItemsSource="{Binding HardwareSizeOptions}" SelectedItem="{Binding HardwareBreakpointSize}"/>
                                             <Button Content="Add" Command="{Binding SetHardwareBreakpointCommand}" Margin="5,0,0,0"/>
                                         </StackPanel>
-                                        <DataGrid Grid.Row="1" ItemsSource="{Binding HardwareBreakpoints}" SelectedItem="{Binding SelectedHardwareBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True">
+                                        <DataGrid x:Name="hardwareBreakpointsGrid" Grid.Row="1" ItemsSource="{Binding HardwareBreakpoints}" SelectedItem="{Binding SelectedHardwareBreakpoint}" AutoGenerateColumns="False" IsReadOnly="True">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Slot" Binding="{Binding Slot, StringFormat=DR{0}}" Width="50"/>
                                                 <DataGridTextColumn Header="Address" Binding="{Binding Address, StringFormat={}{0:X16}}" Width="155"/>
@@ -242,7 +254,7 @@
                             </TabControl>
                         </TabItem>
                         <TabItem Header="Call Stack">
-                            <DataGrid ItemsSource="{Binding CallStackFrames}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                            <DataGrid x:Name="callStackGrid" ItemsSource="{Binding CallStackFrames}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="38"/>
                                     <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
@@ -252,7 +264,7 @@
                             </DataGrid>
                         </TabItem>
                         <TabItem Header="Memory Map">
-                            <DataGrid ItemsSource="{Binding MemoryMap}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                            <DataGrid x:Name="memoryMapGrid" ItemsSource="{Binding MemoryMap}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Base" Binding="{Binding BaseAddress}" Width="155"/>
                                     <DataGridTextColumn Header="End" Binding="{Binding EndAddress}" Width="155"/>
@@ -264,7 +276,7 @@
                             </DataGrid>
                         </TabItem>
                         <TabItem Header="Patches">
-                            <DataGrid ItemsSource="{Binding PatchHistory}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                            <DataGrid x:Name="patchHistoryGrid" ItemsSource="{Binding PatchHistory}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
                                     <DataGridTextColumn Header="Original" Binding="{Binding Original}" Width="130"/>
@@ -275,7 +287,7 @@
                             </DataGrid>
                         </TabItem>
                         <TabItem Header="Modules">
-                            <DataGrid ItemsSource="{Binding Modules}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
+                            <DataGrid x:Name="modulesGrid" ItemsSource="{Binding Modules}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
                                     <DataGridTextColumn Header="Base" Binding="{Binding BaseAddress}" Width="155"/>
@@ -285,7 +297,7 @@
                             </DataGrid>
                         </TabItem>
                         <TabItem Header="Threads">
-                            <DataGrid ItemsSource="{Binding Threads}" AutoGenerateColumns="False" IsReadOnly="True">
+                            <DataGrid x:Name="threadsGrid" ItemsSource="{Binding Threads}" AutoGenerateColumns="False" IsReadOnly="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="TID" Binding="{Binding ThreadId}" Width="75"/>
                                     <DataGridTextColumn Header="Start" Binding="{Binding StartAddress, StringFormat={}{0:X16}}" Width="155"/>
@@ -295,8 +307,8 @@
                             </DataGrid>
                         </TabItem>
                     </TabControl>
-                    <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
-                    <Border Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">
+                    <GridSplitter x:Name="patchSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
+                    <Border x:Name="patchEditorPane" Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="31"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <Border Style="{StaticResource MemoryView.PaneHeader}"><TextBlock Text="Assembler / Patch" FontWeight="SemiBold"/></Border>
@@ -325,9 +337,9 @@
                 </Grid>
             </Grid>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
+            <GridSplitter x:Name="inspectorSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 
-            <Grid Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}">
+            <Grid x:Name="inspectorPane" Grid.Column="2" Background="{StaticResource MemoryView.PanelBackgroundBrush}">
                 <Grid.RowDefinitions><RowDefinition x:Name="registerPanelRow" Height="3*"/><RowDefinition Height="5"/><RowDefinition Height="2*"/></Grid.RowDefinitions>
                 <Border Grid.Row="0" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1,0,0,0">
                     <Grid>

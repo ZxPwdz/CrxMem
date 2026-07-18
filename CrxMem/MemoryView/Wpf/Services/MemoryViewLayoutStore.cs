@@ -14,6 +14,13 @@ public sealed class MemoryViewLayoutSettings
     public double BottomToolsHeight { get; set; } = 255;
     public double PatchEditorWidth { get; set; } = 350;
     public double RegisterPanelHeight { get; set; } = 420;
+    public int SelectedToolTab { get; set; }
+    public int SelectedBreakpointTab { get; set; }
+    public bool InspectorVisible { get; set; } = true;
+    public bool PatchEditorVisible { get; set; } = true;
+    public double CodeFontSize { get; set; } = 12;
+    public double RowHeight { get; set; } = 21;
+    public Dictionary<string, List<double>> ColumnWidths { get; set; } = new();
     public List<string> RecentExpressions { get; set; } = new();
 }
 
@@ -48,6 +55,7 @@ public sealed class MemoryViewLayoutStore : IMemoryViewLayoutStore
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Take(20)
                 .ToList();
+            settings.ColumnWidths ??= new Dictionary<string, List<double>>();
             return settings;
         }
         catch

@@ -135,6 +135,13 @@ Measurements use a Release build after warm-up:
 
 Targets are initial engineering budgets, not acceptance claims until measured and recorded.
 
+### Phase 11 measurements — 2026-07-18
+
+- `CrxMem.DebugTarget` local navigation, seven cache-invalidated samples after warm-up: 1.11, 1.20, 1.39, 1.72, 1.79, 1.94, and 3.40 ms; median 1.72 ms.
+- A 100,000-row disassembly source produced only viewport rows in a 1200×500 render at 200% bitmap DPI and stayed within the 3-second automated guardrail.
+- Renderer coverage also executes at 96, 120, 144, and 192 DPI.
+- Default Release execution completed in approximately one second of test-body time on this machine (89 tests); two consecutive runs passed after serializing WPF STA tests around the AppDomain application singleton.
+
 ## Manual acceptance matrix
 
 For every visible command record: target state, command enabled state, observed effect, error path, undo/cleanup path, and whether target memory/thread/protection state was restored. A screenshot comparison checklist covers layout hierarchy, density, semantic colors, resizing, minimum size, and long-value clipping.
