@@ -1,5 +1,28 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 12 parity review and release handoff
+
+### Acceptance decision
+
+- Retained the legacy Memory Viewer as the default route and kept `Tools > Memory View (WPF Preview)` explicitly opt-in.
+- The WPF viewer passes its stability, service-boundary, debugger, patch-safety, accessibility, persistence, and performance gates.
+- Default promotion is deferred because free-form assembly, durable module-identity recovery, editable metadata, direct hex editing, and true call-stack unwinding have not reached parity.
+
+### Features added or repaired
+
+- Added a real-process WPF window smoke test that pumps the dispatcher and exercises compiled bindings against live process data.
+- Repaired three read-only selection bindings that were implicitly TwoWay and crashed the preview during its first real-process render.
+- Updated the preview command description and produced `08_FINAL_HANDOFF.md` with the verified matrix, limitations, measurements, recovery notes, and recommended next work.
+
+### Verification
+
+- Release solution build and the complete default test suite pass, including WPF construction, real-process rendering, four DPI scales, persistence, stale-navigation, and native-service fake tests.
+- Opt-in native debugger, patch, software/hardware breakpoint, and performance tests pass against the isolated benign target.
+
+### Route status
+
+The WPF implementation is a substantial verified preview, not the default. The legacy route is retained for at least this release and can only be removed by a later explicit parity decision.
+
 ## 2026-07-18 — Phase 11 performance, accessibility, and persistence
 
 ### Features added or repaired

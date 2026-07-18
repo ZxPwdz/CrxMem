@@ -162,7 +162,7 @@
                 </MenuItem>
                 <MenuItem Header="_Tools">
                     <MenuItem Header="Memory View (_WPF Preview)" Click="MemoryViewWpfPreview_Click"
-                              ToolTip="Read-only WPF process inspection preview"/>
+                              ToolTip="Verified WPF inspection and debugging preview; the legacy viewer remains the default until parity"/>
                     <Separator/>
                     <MenuItem Header="_Lua Engine" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
                     <MenuItem Header="_PE Analysis" Click="PEAnalysis_Click"/>

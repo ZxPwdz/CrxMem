@@ -314,11 +314,11 @@
                             <Border Style="{StaticResource MemoryView.PaneHeader}"><TextBlock Text="Assembler / Patch" FontWeight="SemiBold"/></Border>
                             <StackPanel Grid.Row="1" Margin="10">
                                 <TextBlock Text="Address" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding SelectedInstructionAddress}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
+                                <TextBox Text="{Binding SelectedInstructionAddress, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
                                 <TextBlock Text="Original bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding SelectedInstructionBytes}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
+                                <TextBox Text="{Binding SelectedInstructionBytes, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
                                 <TextBlock Text="Instruction" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding SelectedInstructionText}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Height="60" TextWrapping="Wrap" Margin="0,3,0,8"/>
+                                <TextBox Text="{Binding SelectedInstructionText, Mode=OneWay}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Height="60" TextWrapping="Wrap" Margin="0,3,0,8"/>
                                 <TextBlock Text="Replacement bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
                                 <TextBox Text="{Binding PatchBytes, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,5"/>
                                 <CheckBox Content="Explicitly NOP-pad shorter replacements" IsChecked="{Binding PadPatchWithNops}" Margin="0,2,0,8"/>

@@ -24,13 +24,13 @@
 
 ## New WPF viewer status
 
-The read-only WPF preview shell is available from `Tools > Memory View (WPF Preview)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, and hex data.
+The WPF inspection/debugging preview is available from `Tools > Memory View (WPF Preview)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, hex data, paused-thread state, and verified debugger/patch tools.
 
 - The legacy viewer remains the default and the WPF preview is not at feature parity.
-- Disassembly uses a bounded custom visible-row renderer. Hex still uses an interim virtualized `DataGrid`.
-- Disassembly breakpoint/current-instruction state is unavailable until a verified debug session exists; branch lanes currently cover visible in-window targets only.
+- Disassembly and hex use bounded custom visible-row renderers; branch lanes currently cover visible in-window targets only.
+- Disassembly breakpoint and current-instruction markers are populated from verified debug-session state.
 - Address input supports hexadecimal values, modules, arithmetic, parentheses, and bounded pointer dereferences. Register and symbol names produce explicit unknown-name errors until their providers are connected.
-- Navigation Back/Forward is session-scoped; recent expression text and basic pane/window layout persist locally.
+- Navigation Back/Forward is session-scoped; recent expression text and pane/window/column layout persist locally.
 - Process reads report partial/unreadable/unavailable states through typed services.
 - Metadata is represented as module plus RVA at the WPF service boundary, while the compatibility backend still reads legacy runtime-address storage.
 - Attach, Detach, Pause, Resume, stepping, breakpoint manager, paused-thread registers, read-only stack, hex, watches, memory map, patch history, modules, threads, and verified raw-byte patch transactions are connected. Free-form assembly remains unavailable rather than simulated.
@@ -42,6 +42,8 @@ The read-only WPF preview shell is available from `Tools > Memory View (WPF Prev
 - The native debug integration test is opt-in and currently validated with a 64-bit debugger process on Windows.
 - Patch history is in memory only. Although records contain module/RVA fields, persisted module identity validation and stale-binary recovery are not implemented.
 - Window placement, splitters, pane visibility, selected tabs, code font/row density, recent addresses, and DataGrid tool-column widths persist. The custom disassembly renderer's internal column geometry remains fixed.
+- Comments and bookmarks are displayed, but the WPF route does not yet provide complete create/edit/delete workflows or migrate the legacy runtime-address store to versioned module identity plus RVA records.
+- The WPF preview is intentionally not the default route in this release; see `08_FINAL_HANDOFF.md` for the Phase 12 gate decision.
 
 ## Explicit nonclaims
 
