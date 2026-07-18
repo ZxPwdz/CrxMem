@@ -24,9 +24,9 @@
 
 ## New WPF viewer status
 
-The WPF inspection/debugging preview is available from `Tools > Memory View (WPF Preview)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, hex data, paused-thread state, and verified debugger/patch tools.
+The WPF inspection/debugging viewer is the main `Memory View` route and is also available from `Tools > Memory View (WPF)` after selecting a process. It displays real process/module identity, bounded disassembly, region information, comments, bookmarks, hex data, paused-thread state, and verified debugger/patch tools.
 
-- The legacy viewer remains the default and the WPF preview is not at feature parity.
+- The WPF viewer is the default at the project owner's direction. The legacy viewer remains available at `Tools > Memory Viewer (Legacy)` while WPF parity work continues.
 - Disassembly and hex use bounded custom visible-row renderers; branch lanes currently cover visible in-window targets only.
 - Disassembly breakpoint and current-instruction markers are populated from verified debug-session state.
 - Address input supports hexadecimal values, modules, arithmetic, parentheses, and bounded pointer dereferences. Register and symbol names produce explicit unknown-name errors until their providers are connected.
@@ -43,7 +43,7 @@ The WPF inspection/debugging preview is available from `Tools > Memory View (WPF
 - Patch history is in memory only. Although records contain module/RVA fields, persisted module identity validation and stale-binary recovery are not implemented.
 - Window placement, splitters, pane visibility, selected tabs, code font/row density, recent addresses, and DataGrid tool-column widths persist. The custom disassembly renderer's internal column geometry remains fixed.
 - Comments and bookmarks are displayed, but the WPF route does not yet provide complete create/edit/delete workflows or migrate the legacy runtime-address store to versioned module identity plus RVA records.
-- The WPF preview is intentionally not the default route in this release; see `08_FINAL_HANDOFF.md` for the Phase 12 gate decision.
+- The WPF route still has explicitly documented parity gaps; see `08_FINAL_HANDOFF.md` for the owner-directed route decision.
 
 ## Explicit nonclaims
 

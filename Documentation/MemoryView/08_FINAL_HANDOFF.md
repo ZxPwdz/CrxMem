@@ -2,9 +2,9 @@
 
 ## Release decision
 
-The WPF MemoryView remains an opt-in preview under `Tools > Memory View (WPF Preview)`. The existing `Memory View` command remains the default and the legacy viewer will be retained for at least one release.
+The WPF MemoryView is the main `Memory View` route. The previous viewer remains available under `Tools > Memory Viewer (Legacy)` and will be retained for at least one release.
 
-This is a deliberate acceptance-gate decision, not a rollback. Phases 2–11 delivered a stable service-oriented WPF debugger and inspection surface, but several parity items remain important enough that changing the default route would be premature.
+This route was promoted at the project owner's direction so the redesign is the normal testing surface. Phases 2–11 delivered a stable service-oriented WPF debugger and inspection surface; the outstanding parity items below remain explicitly documented and gated.
 
 ## Verified capabilities
 
@@ -20,7 +20,7 @@ This is a deliberate acceptance-gate decision, not a rollback. Phases 2–11 del
 | Breakpoints and stepping | Pass | Software and hardware breakpoints, reinsertion, hit counts, thread propagation, step/run commands |
 | Remaining panels | Pass with labelled limitations | Breakpoints, memory map, modules, threads, patches and heuristic call-stack projection |
 | Accessibility/persistence | Pass | Keyboard focus, non-color state labels, font/density settings, pane/window/tab/column persistence |
-| Default-route parity | Deferred | The outstanding items below prevent promotion in this release |
+| Default route | WPF promoted by owner decision | Legacy remains explicitly available while the outstanding items are completed |
 
 ## Outstanding parity gates
 
@@ -52,8 +52,8 @@ dotnet test CrxMem.sln -c Release --no-build
 
 ## Recovery and compatibility
 
-- The legacy viewer remains reachable through the main `Memory View` command.
-- The WPF preview is separately routed from the Tools menu, so it can be disabled without modifying the legacy implementation.
+- The WPF viewer is reachable through the main `Memory View` button and `Tools > Memory View (WPF)`.
+- The legacy viewer remains separately reachable through `Tools > Memory Viewer (Legacy)`.
 - WPF layout is stored at `%LocalAppData%\CrxMem\MemoryView.layout.json`; close the window and rename or delete that file to reset layout safely.
 - Patch history is session-local. Do not treat it as recovery across process restarts or changed binaries.
 - Each phase is a dedicated Git commit, allowing an individual phase to be reviewed or reverted without discarding the legacy route.

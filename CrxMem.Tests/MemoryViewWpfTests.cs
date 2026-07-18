@@ -115,7 +115,7 @@ public sealed class MemoryViewWpfTests
 
                 var window = new MemoryViewWindow(
                     new FakeMemoryViewDataService(), new FakeMemoryViewLayoutStore());
-                Assert.Equal("CrxMem Memory View (WPF Preview)", window.Title);
+                Assert.Equal("CrxMem Memory View", window.Title);
                 Assert.IsType<MemoryViewViewModel>(window.DataContext);
                 window.Close();
 

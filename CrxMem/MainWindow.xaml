@@ -161,8 +161,10 @@
                               Click="LiveUpdates_Click"/>
                 </MenuItem>
                 <MenuItem Header="_Tools">
-                    <MenuItem Header="Memory View (_WPF Preview)" Click="MemoryViewWpfPreview_Click"
-                              ToolTip="Verified WPF inspection and debugging preview; the legacy viewer remains the default until parity"/>
+                    <MenuItem Header="Memory View (_WPF)" Click="MemoryViewWpfPreview_Click"
+                              ToolTip="Open the redesigned WPF Memory View"/>
+                    <MenuItem Header="Memory Viewer (_Legacy)" Click="LegacyMemoryView_Click"
+                              ToolTip="Open the previous WinForms/GDI+ Memory Viewer"/>
                     <Separator/>
                     <MenuItem Header="_Lua Engine" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
                     <MenuItem Header="_PE Analysis" Click="PEAnalysis_Click"/>

@@ -1,5 +1,11 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — WPF default-route correction
+
+- Routed the main `Memory View` button to the redesigned WPF window at the project owner's direction.
+- Added `Tools > Memory Viewer (Legacy)` so the previous WinForms/GDI+ viewer remains explicitly available.
+- Removed the preview suffix from the WPF window title while retaining the documented parity limitations.
+
 ## 2026-07-18 — Phase 12 parity review and release handoff
 
 ### Acceptance decision

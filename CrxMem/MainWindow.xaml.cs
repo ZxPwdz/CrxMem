@@ -1241,14 +1241,18 @@ namespace CrxMem
         // SINGLETON FORM HANDLERS
         // ═══════════════════════════════════════════════════════════════════
 
-        private void MemoryView_Click(object sender, RoutedEventArgs e) => OpenOrFocusMemoryView(IntPtr.Zero);
+        private void MemoryView_Click(object sender, RoutedEventArgs e) => OpenOrFocusMemoryViewWpf();
 
-        private void MemoryViewWpfPreview_Click(object sender, RoutedEventArgs e)
+        private void MemoryViewWpfPreview_Click(object sender, RoutedEventArgs e) => OpenOrFocusMemoryViewWpf();
+
+        private void LegacyMemoryView_Click(object sender, RoutedEventArgs e) => OpenOrFocusMemoryView(IntPtr.Zero);
+
+        private void OpenOrFocusMemoryViewWpf()
         {
             if (_process == null || !_process.IsOpen)
             {
                 System.Windows.MessageBox.Show(this,
-                    "Select a process in the main CrxMem window before opening the WPF Memory View preview.",
+                    "Select a process in the main CrxMem window before opening the WPF Memory View.",
                     "No process selected", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
