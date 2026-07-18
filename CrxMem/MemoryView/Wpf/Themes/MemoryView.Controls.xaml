@@ -52,10 +52,71 @@
         <Setter Property="Background" Value="{StaticResource MemoryView.ToolbarBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
     </Style>
+    <ControlTemplate x:Key="MemoryView.TopMenuItemTemplate" TargetType="MenuItem">
+        <Grid SnapsToDevicePixels="True">
+            <Border x:Name="ItemBorder" Background="Transparent" Padding="8,4">
+                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+            </Border>
+            <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False"
+                   IsOpen="{TemplateBinding IsSubmenuOpen}" PopupAnimation="Fade">
+                <Border Background="{StaticResource MemoryView.PanelRaisedBrush}"
+                        BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1" Padding="2" MinWidth="190">
+                    <ScrollViewer CanContentScroll="True"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/></ScrollViewer>
+                </Border>
+            </Popup>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+            <Trigger Property="IsSubmenuOpen" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource MemoryView.SelectionInactiveBrush}"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/><Setter Property="Opacity" Value="0.65"/></Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+    <ControlTemplate x:Key="MemoryView.SubmenuItemTemplate" TargetType="MenuItem">
+        <Grid SnapsToDevicePixels="True">
+            <Border x:Name="ItemBorder" Background="Transparent" Padding="5,4">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="18"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="CheckMark" Text="✓" Visibility="Collapsed" VerticalAlignment="Center" Foreground="{StaticResource MemoryView.BlueBrush}"/>
+                    <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}" Margin="24,0,4,0"
+                               Foreground="{StaticResource MemoryView.TextMutedBrush}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="SubmenuArrow" Grid.Column="3" Text="›" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+            <Popup x:Name="PART_Popup" Placement="Right" AllowsTransparency="True" Focusable="False"
+                   IsOpen="{TemplateBinding IsSubmenuOpen}" PopupAnimation="Fade">
+                <Border Background="{StaticResource MemoryView.PanelRaisedBrush}"
+                        BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1" Padding="2" MinWidth="190">
+                    <ScrollViewer CanContentScroll="True"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/></ScrollViewer>
+                </Border>
+            </Popup>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/></Trigger>
+            <Trigger Property="HasItems" Value="True"><Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/><Setter Property="Opacity" Value="0.55"/></Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
     <Style TargetType="MenuItem">
-        <Setter Property="Background" Value="{StaticResource MemoryView.ToolbarBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
-        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Template" Value="{StaticResource MemoryView.SubmenuItemTemplate}"/>
+        <Style.Triggers>
+            <Trigger Property="Role" Value="TopLevelHeader"><Setter Property="Template" Value="{StaticResource MemoryView.TopMenuItemTemplate}"/></Trigger>
+            <Trigger Property="Role" Value="TopLevelItem"><Setter Property="Template" Value="{StaticResource MemoryView.TopMenuItemTemplate}"/></Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource MemoryView.PanelRaisedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="2"/>
+    </Style>
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+        <Setter Property="Height" Value="1"/><Setter Property="Margin" Value="24,4,6,4"/>
+        <Setter Property="Background" Value="{StaticResource MemoryView.BorderBrush}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Background="{TemplateBinding Background}"/></ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
@@ -65,6 +126,21 @@
         <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/>
         <Setter Property="Padding" Value="12,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="TabBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="0,0,1,1" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabBorder" Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabBorder" Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource MemoryView.FocusBrush}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/></Trigger>

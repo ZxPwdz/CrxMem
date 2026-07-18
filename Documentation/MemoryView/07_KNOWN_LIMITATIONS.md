@@ -42,6 +42,7 @@ The WPF inspection/debugging viewer is the main `Memory View` route and is also 
 - The native debug integration test is opt-in and currently validated with a 64-bit debugger process on Windows.
 - Patch history is in memory only. Although records contain module/RVA fields, persisted module identity validation and stale-binary recovery are not implemented.
 - Window placement, splitters, pane visibility, selected tabs, code font/row density, recent addresses, and DataGrid tool-column widths persist. The custom disassembly renderer's internal column geometry remains fixed.
+- Context menus cover verified copy, navigation, breakpoint, and NOP workflows. Metadata editing, direct hex editing, and unverified debugger actions remain absent rather than appearing as inactive context commands.
 - Comments and bookmarks are displayed, but the WPF route does not yet provide complete create/edit/delete workflows or migrate the legacy runtime-address store to versioned module identity plus RVA records.
 - The WPF route still has explicitly documented parity gaps; see `08_FINAL_HANDOFF.md` for the owner-directed route decision.
 

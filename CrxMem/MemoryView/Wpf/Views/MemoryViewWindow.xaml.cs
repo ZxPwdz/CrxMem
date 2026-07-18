@@ -1,5 +1,8 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using CrxMem.Core;
 using CrxMem.MemoryView.Wpf.Models;
 using CrxMem.MemoryView.Wpf.Services;
@@ -251,13 +254,19 @@ public partial class MemoryViewWindow : Window
 
     private void ApplyColumnWidths(IReadOnlyDictionary<string, List<double>>? widths)
     {
-        if (widths == null) return;
         foreach ((string name, System.Windows.Controls.DataGrid grid) in TrackedGrids())
         {
-            if (!widths.TryGetValue(name, out List<double>? values)) continue;
-            for (int index = 0; index < Math.Min(values.Count, grid.Columns.Count); index++)
-                if (double.IsFinite(values[index]) && values[index] is >= 30 and <= 2000)
-                    grid.Columns[index].Width = new System.Windows.Controls.DataGridLength(values[index]);
+            if (widths != null && widths.TryGetValue(name, out List<double>? values))
+            {
+                int fixedColumnCount = Math.Max(0, grid.Columns.Count - 1);
+                for (int index = 0; index < Math.Min(values.Count, fixedColumnCount); index++)
+                    if (double.IsFinite(values[index]) && values[index] is >= 30 and <= 2000)
+                        grid.Columns[index].Width = new DataGridLength(values[index]);
+            }
+
+            // Persisted pixel widths must not strand unused space at the right edge.
+            if (grid.Columns.Count > 0)
+                grid.Columns[^1].Width = new DataGridLength(1, DataGridLengthUnitType.Star);
         }
     }
 
@@ -273,16 +282,95 @@ public partial class MemoryViewWindow : Window
     private async void PanelGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not System.Windows.Controls.DataGrid grid) return;
-        ulong address = grid.SelectedItem switch
-        {
-            BreakpointRecord row => row.Address,
-            MemoryMapRow row => row.RuntimeAddress,
-            PatchHistoryRow row => row.RuntimeAddress,
-            ModulePanelRow row => row.RuntimeAddress,
-            CallStackPanelRow row => row.RuntimeAddress,
-            _ => 0
-        };
+        ulong address = GetPanelAddress(grid.SelectedItem);
         if (address != 0) await _viewModel.NavigateToAddressAsync(address);
+    }
+
+    private static ulong GetPanelAddress(object? item) => item switch
+    {
+        BreakpointRecord row => row.Address,
+        StackPreviewRow row => row.PointerValue,
+        WatchPreviewRow row => row.RuntimeAddress ?? 0,
+        MemoryMapRow row => row.RuntimeAddress,
+        PatchHistoryRow row => row.RuntimeAddress,
+        ModulePanelRow row => row.RuntimeAddress,
+        CallStackPanelRow row => row.RuntimeAddress,
+        ThreadDescriptor row => row.StartAddress,
+        _ => 0
+    };
+
+    private static DataGrid? ContextGrid(object sender)
+    {
+        if (sender is not MenuItem item) return null;
+        return ItemsControl.ItemsControlFromItemContainer(item) is ContextMenu menu
+            ? menu.PlacementTarget as DataGrid
+            : null;
+    }
+
+    private void PanelGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid grid || e.OriginalSource is not DependencyObject source) return;
+        DependencyObject? current = source;
+        while (current != null && current is not DataGridRow) current = VisualTreeHelper.GetParent(current);
+        if (current is DataGridRow row)
+        {
+            grid.SelectedItem = row.Item;
+            row.Focus();
+        }
+    }
+
+    private async void PanelGoToAddress_Click(object sender, RoutedEventArgs e)
+    {
+        DataGrid? grid = ContextGrid(sender);
+        ulong address = GetPanelAddress(grid?.SelectedItem);
+        if (address != 0) await _viewModel.NavigateToAddressAsync(address);
+    }
+
+    private void PanelCopyRow_Click(object sender, RoutedEventArgs e)
+    {
+        object? row = ContextGrid(sender)?.SelectedItem;
+        if (row != null) System.Windows.Clipboard.SetText(row.ToString() ?? string.Empty);
+    }
+
+    private void CopyDisassemblyRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (disassemblyView.SelectedItem is { } row)
+            System.Windows.Clipboard.SetText($"{row.Address}  {row.Bytes}  {row.Instruction}");
+    }
+
+    private void CopyDisassemblyAddress_Click(object sender, RoutedEventArgs e)
+    {
+        if (disassemblyView.SelectedItem is { } row) System.Windows.Clipboard.SetText(row.Address);
+    }
+
+    private void CopyDisassemblyBytes_Click(object sender, RoutedEventArgs e)
+    {
+        if (disassemblyView.SelectedItem is { } row) System.Windows.Clipboard.SetText(row.Bytes);
+    }
+
+    private void ToggleBreakpointContext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.ToggleBreakpointCommand.CanExecute(null)) _viewModel.ToggleBreakpointCommand.Execute(null);
+    }
+
+    private void NopInstructionContext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.NopInstructionCommand.CanExecute(null)) _viewModel.NopInstructionCommand.Execute(null);
+    }
+
+    private void CopyHexByte_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedByteValue is byte value) System.Windows.Clipboard.SetText(value.ToString("X2"));
+    }
+
+    private void CopyHexAddress_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedByteAddress is ulong address) System.Windows.Clipboard.SetText($"{address:X16}");
+    }
+
+    private async void GoToHexAddress_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedByteAddress is ulong address) await _viewModel.NavigateToAddressAsync(address);
     }
 
     private static MemoryViewComposition CreateComposition(ProcessAccess process)

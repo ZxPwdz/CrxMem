@@ -195,8 +195,18 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        SelectRowAt(e.GetPosition(this));
+    }
+
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        SelectRowAt(e.GetPosition(this));
+        base.OnMouseRightButtonDown(e);
+    }
+
+    private void SelectRowAt(Point point)
+    {
         Focus();
-        Point point = e.GetPosition(this);
         if (point.Y < HeaderHeight) return;
         int index = (int)Math.Floor((_verticalOffset + point.Y - HeaderHeight) / RowHeight);
         SelectIndex(index);

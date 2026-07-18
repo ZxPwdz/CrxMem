@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — MemoryView interaction polish
+
+- Replaced the platform-default menu and tab templates with opaque, compact dark templates that preserve normal hover, disabled, checked, shortcut, and submenu indicators.
+- Kept the final column in every bottom tool grid star-sized after loading persisted widths, so it consumes available pane width instead of leaving a dead region.
+- Added selection-aware context menus to disassembly, hex, stack, watches, breakpoints, call stack, memory map, patches, modules, and threads.
+- Exposed only verified actions: copy row/address/bytes/instruction, navigate to a selected address, toggle software breakpoints, and verified NOP replacement.
+- Added WPF resource tests for the menu templates, fill-column behavior, and context-menu presence.
+
 ## 2026-07-18 — WPF default-route correction
 
 - Routed the main `Memory View` button to the redesigned WPF window at the project owner's direction.

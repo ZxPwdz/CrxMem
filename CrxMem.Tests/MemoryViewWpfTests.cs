@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
+using System.Windows.Controls;
 using CrxMem.MemoryView.Wpf.Models;
 using CrxMem.MemoryView.Wpf.Controls;
 using CrxMem.MemoryView.Wpf.Services;
@@ -108,6 +109,8 @@ public sealed class MemoryViewWpfTests
 
                 Assert.Equal(2, dictionary.MergedDictionaries.Count);
                 Assert.Contains("MemoryView.PaneHeader", dictionary.Keys.Cast<object>());
+                Assert.Contains("MemoryView.TopMenuItemTemplate", dictionary.Keys.Cast<object>());
+                Assert.Contains("MemoryView.SubmenuItemTemplate", dictionary.Keys.Cast<object>());
                 Assert.Contains("MemoryView.WindowBackgroundBrush",
                     dictionary.MergedDictionaries[0].Keys.Cast<object>());
                 Assert.Contains("MemoryView.UiFont",
@@ -117,6 +120,12 @@ public sealed class MemoryViewWpfTests
                     new FakeMemoryViewDataService(), new FakeMemoryViewLayoutStore());
                 Assert.Equal("CrxMem Memory View", window.Title);
                 Assert.IsType<MemoryViewViewModel>(window.DataContext);
+                var patchGrid = Assert.IsType<DataGrid>(window.FindName("patchHistoryGrid"));
+                Assert.True(patchGrid.Columns[^1].Width.IsStar);
+                Assert.NotNull(patchGrid.ContextMenu);
+                var disassembly = Assert.IsType<VirtualizedDisassemblyControl>(window.FindName("disassemblyView"));
+                Assert.NotNull(disassembly.ContextMenu);
+                Assert.Equal(6, disassembly.ContextMenu!.Items.Count);
                 window.Close();
 
                 var renderer = new VirtualizedDisassemblyControl

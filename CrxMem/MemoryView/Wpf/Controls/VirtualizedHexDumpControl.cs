@@ -110,8 +110,19 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
+        SelectByteAt(e.GetPosition(this));
+        base.OnMouseLeftButtonDown(e);
+    }
+
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        SelectByteAt(e.GetPosition(this));
+        base.OnMouseRightButtonDown(e);
+    }
+
+    private void SelectByteAt(Point point)
+    {
         Focus();
-        Point point = e.GetPosition(this);
         int row = _firstVisibleRow + (int)(point.Y / RowHeight);
         int byteIndex = (int)((point.X - AddressWidth) / ByteCellWidth);
         if (row >= 0 && row < _items.Count && byteIndex >= 0 &&
@@ -121,7 +132,6 @@ public sealed class VirtualizedHexDumpControl : FrameworkElement
             _selectedByte = byteIndex;
             InvalidateVisual();
         }
-        base.OnMouseLeftButtonDown(e);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
