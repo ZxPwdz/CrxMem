@@ -99,7 +99,6 @@ public sealed class MemoryViewWpfTests
                 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
                     Environment.SetEnvironmentVariable("windir", Environment.GetEnvironmentVariable("SystemRoot"));
 
-                _ = Application.Current ?? new Application();
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
@@ -121,8 +120,11 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal("CrxMem Memory View", window.Title);
                 Assert.IsType<MemoryViewViewModel>(window.DataContext);
                 var patchGrid = Assert.IsType<DataGrid>(window.FindName("patchHistoryGrid"));
+                Assert.True(patchGrid.Columns[0].Width.IsSizeToCells);
                 Assert.True(patchGrid.Columns[^1].Width.IsStar);
                 Assert.NotNull(patchGrid.ContextMenu);
+                Assert.NotNull(patchGrid.ContextMenu!.Template);
+                Assert.Equal(DataGridSelectionMode.Extended, patchGrid.SelectionMode);
                 var disassembly = Assert.IsType<VirtualizedDisassemblyControl>(window.FindName("disassemblyView"));
                 Assert.NotNull(disassembly.ContextMenu);
                 Assert.Equal(6, disassembly.ContextMenu!.Items.Count);

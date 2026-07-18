@@ -52,8 +52,13 @@
             <ContextMenu x:Key="PanelGridContextMenu" x:Shared="False">
                 <MenuItem Header="_Go to Address" Click="PanelGoToAddress_Click"/>
                 <Separator/>
-                <MenuItem Header="_Copy Row" Click="PanelCopyRow_Click" InputGestureText="Ctrl+C"/>
+                <MenuItem Header="_Copy Selected Rows" Click="PanelCopyRow_Click" InputGestureText="Ctrl+C"/>
             </ContextMenu>
+            <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="PanelGrid_PreviewMouseLeftButtonDown"/>
+                <EventSetter Event="PreviewMouseMove" Handler="PanelGrid_PreviewMouseMove"/>
+                <EventSetter Event="PreviewMouseLeftButtonUp" Handler="PanelGrid_PreviewMouseLeftButtonUp"/>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 

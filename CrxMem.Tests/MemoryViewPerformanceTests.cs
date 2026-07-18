@@ -20,7 +20,6 @@ public sealed class MemoryViewPerformanceTests
             {
                 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
                     Environment.SetEnvironmentVariable("windir", Environment.GetEnvironmentVariable("SystemRoot"));
-                _ = Application.Current ?? new Application();
                 var renderer = new VirtualizedDisassemblyControl
                 {
                     ItemsSource = Enumerable.Range(0, 100_000).Select(index =>

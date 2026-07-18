@@ -19,7 +19,7 @@ This route was promoted at the project owner's direction so the redesign is the 
 | Safe byte patches | Pass | Original-byte validation, protection restoration, cache flush, read-back, rollback, undo/redo |
 | Breakpoints and stepping | Pass | Software and hardware breakpoints, reinsertion, hit counts, thread propagation, step/run commands |
 | Remaining panels | Pass with labelled limitations | Breakpoints, memory map, modules, threads, patches and heuristic call-stack projection |
-| Accessibility/persistence | Pass | Keyboard focus, non-color state labels, font/density settings, pane/window/tab/column persistence |
+| Accessibility/persistence | Pass | Keyboard focus, non-color state labels, font/density settings, pane/window/tab persistence, content-sized tool columns |
 | Default route | WPF promoted by owner decision | Legacy remains explicitly available while the outstanding items are completed |
 
 ## Outstanding parity gates

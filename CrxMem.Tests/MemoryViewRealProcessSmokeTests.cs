@@ -20,13 +20,13 @@ public sealed class MemoryViewRealProcessSmokeTests
             {
                 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
                     Environment.SetEnvironmentVariable("windir", Environment.GetEnvironmentVariable("SystemRoot"));
-                Application application = Application.Current ?? new Application();
+                Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
                 handler = (_, args) =>
                 {
                     failure = args.Exception;
                     args.Handled = true;
                 };
-                application.DispatcherUnhandledException += handler;
+                dispatcher.UnhandledException += handler;
                 using var process = new ProcessAccess();
                 Assert.True(process.Open(Environment.ProcessId));
                 var window = new MemoryViewWindow(process);
@@ -44,8 +44,8 @@ public sealed class MemoryViewRealProcessSmokeTests
             catch (Exception ex) { failure = ex; }
             finally
             {
-                if (handler != null && Application.Current != null)
-                    Application.Current.DispatcherUnhandledException -= handler;
+                if (handler != null)
+                    Dispatcher.CurrentDispatcher.UnhandledException -= handler;
             }
         });
         thread.SetApartmentState(ApartmentState.STA);

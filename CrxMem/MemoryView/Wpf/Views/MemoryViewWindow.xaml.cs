@@ -7,6 +7,7 @@ using CrxMem.Core;
 using CrxMem.MemoryView.Wpf.Models;
 using CrxMem.MemoryView.Wpf.Services;
 using CrxMem.MemoryView.Wpf.ViewModels;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 
 namespace CrxMem.MemoryView.Wpf.Views;
 
@@ -19,6 +20,8 @@ public partial class MemoryViewWindow : Window
     private double _visiblePatchEditorWidth = 350;
     private double _codeFontSize = 12;
     private double _rowHeight = 21;
+    private DataGrid? _dragSelectionGrid;
+    private int _dragSelectionAnchor = -1;
 
     public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default)
         : this(CreateComposition(process), startAddress)
@@ -132,7 +135,7 @@ public partial class MemoryViewWindow : Window
         _codeFontSize = Math.Clamp(settings.CodeFontSize, 10, 20);
         _rowHeight = Math.Clamp(settings.RowHeight, 18, 32);
         ApplyCodeMetrics();
-        ApplyColumnWidths(settings.ColumnWidths);
+        ConfigureColumnWidths();
         showInspectorMenu.IsChecked = settings.InspectorVisible;
         showPatchEditorMenu.IsChecked = settings.PatchEditorVisible;
         SetInspectorVisible(settings.InspectorVisible);
@@ -173,7 +176,6 @@ public partial class MemoryViewWindow : Window
                 PatchEditorVisible = showPatchEditorMenu.IsChecked,
                 CodeFontSize = _codeFontSize,
                 RowHeight = _rowHeight,
-                ColumnWidths = CaptureColumnWidths(),
                 RecentExpressions = _viewModel.RecentExpressions.ToList()
             });
         }
@@ -252,32 +254,25 @@ public partial class MemoryViewWindow : Window
         yield return ("Threads", threadsGrid);
     }
 
-    private void ApplyColumnWidths(IReadOnlyDictionary<string, List<double>>? widths)
+    private void ConfigureColumnWidths()
     {
         foreach ((string name, System.Windows.Controls.DataGrid grid) in TrackedGrids())
         {
-            if (widths != null && widths.TryGetValue(name, out List<double>? values))
+            int lastIndex = grid.Columns.Count - 1;
+            for (int index = 0; index < lastIndex; index++)
             {
-                int fixedColumnCount = Math.Max(0, grid.Columns.Count - 1);
-                for (int index = 0; index < Math.Min(values.Count, fixedColumnCount); index++)
-                    if (double.IsFinite(values[index]) && values[index] is >= 30 and <= 2000)
-                        grid.Columns[index].Width = new DataGridLength(values[index]);
+                grid.Columns[index].MinWidth = 45;
+                grid.Columns[index].MaxWidth = 320;
+                grid.Columns[index].Width = DataGridLength.SizeToCells;
             }
 
-            // Persisted pixel widths must not strand unused space at the right edge.
-            if (grid.Columns.Count > 0)
-                grid.Columns[^1].Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+            if (lastIndex >= 0)
+            {
+                grid.Columns[lastIndex].MinWidth = 80;
+                grid.Columns[lastIndex].Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+            }
         }
     }
-
-    private Dictionary<string, List<double>> CaptureColumnWidths() => TrackedGrids()
-        .ToDictionary(
-            item => item.Name,
-            item => item.Grid.Columns
-                .Select(column => double.IsFinite(column.ActualWidth)
-                    ? Math.Clamp(column.ActualWidth, 30, 2000)
-                    : 100)
-                .ToList());
 
     private async void PanelGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -314,9 +309,50 @@ public partial class MemoryViewWindow : Window
         while (current != null && current is not DataGridRow) current = VisualTreeHelper.GetParent(current);
         if (current is DataGridRow row)
         {
-            grid.SelectedItem = row.Item;
+            if (!grid.SelectedItems.Contains(row.Item))
+            {
+                grid.SelectedItems.Clear();
+                grid.SelectedItem = row.Item;
+            }
             row.Focus();
         }
+    }
+
+    private void PanelGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid grid || e.OriginalSource is not DependencyObject source) return;
+        DataGridRow? row = FindAncestor<DataGridRow>(source);
+        if (row == null) return;
+        _dragSelectionGrid = grid;
+        _dragSelectionAnchor = grid.Items.IndexOf(row.Item);
+    }
+
+    private void PanelGrid_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (sender is not DataGrid grid || grid != _dragSelectionGrid ||
+            e.LeftButton != MouseButtonState.Pressed || _dragSelectionAnchor < 0 ||
+            e.OriginalSource is not DependencyObject source) return;
+        DataGridRow? row = FindAncestor<DataGridRow>(source);
+        if (row == null) return;
+        int end = grid.Items.IndexOf(row.Item);
+        if (end < 0) return;
+        grid.SelectedItems.Clear();
+        for (int index = Math.Min(_dragSelectionAnchor, end); index <= Math.Max(_dragSelectionAnchor, end); index++)
+            grid.SelectedItems.Add(grid.Items[index]);
+        grid.SelectedItem = row.Item;
+    }
+
+    private void PanelGrid_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _dragSelectionGrid = null;
+        _dragSelectionAnchor = -1;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject source) where T : DependencyObject
+    {
+        DependencyObject? current = source;
+        while (current != null && current is not T) current = VisualTreeHelper.GetParent(current);
+        return current as T;
     }
 
     private async void PanelGoToAddress_Click(object sender, RoutedEventArgs e)
@@ -328,24 +364,29 @@ public partial class MemoryViewWindow : Window
 
     private void PanelCopyRow_Click(object sender, RoutedEventArgs e)
     {
-        object? row = ContextGrid(sender)?.SelectedItem;
-        if (row != null) System.Windows.Clipboard.SetText(row.ToString() ?? string.Empty);
+        DataGrid? grid = ContextGrid(sender);
+        if (grid?.SelectedItems.Count > 0)
+            System.Windows.Clipboard.SetText(string.Join(Environment.NewLine,
+                grid.SelectedItems.Cast<object>().Select(row => row.ToString() ?? string.Empty)));
     }
 
     private void CopyDisassemblyRow_Click(object sender, RoutedEventArgs e)
     {
-        if (disassemblyView.SelectedItem is { } row)
-            System.Windows.Clipboard.SetText($"{row.Address}  {row.Bytes}  {row.Instruction}");
+        if (disassemblyView.SelectedItems.Count > 0)
+            System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, disassemblyView.SelectedItems.Select(row =>
+                $"{row.Address}  {row.Bytes}  {row.Instruction}")));
     }
 
     private void CopyDisassemblyAddress_Click(object sender, RoutedEventArgs e)
     {
-        if (disassemblyView.SelectedItem is { } row) System.Windows.Clipboard.SetText(row.Address);
+        if (disassemblyView.SelectedItems.Count > 0)
+            System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, disassemblyView.SelectedItems.Select(row => row.Address)));
     }
 
     private void CopyDisassemblyBytes_Click(object sender, RoutedEventArgs e)
     {
-        if (disassemblyView.SelectedItem is { } row) System.Windows.Clipboard.SetText(row.Bytes);
+        if (disassemblyView.SelectedItems.Count > 0)
+            System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, disassemblyView.SelectedItems.Select(row => row.Bytes)));
     }
 
     private void ToggleBreakpointContext_Click(object sender, RoutedEventArgs e)

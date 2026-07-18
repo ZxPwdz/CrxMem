@@ -10,6 +10,7 @@ using Clipboard = System.Windows.Clipboard;
 using Color = System.Windows.Media.Color;
 using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Pen = System.Windows.Media.Pen;
 using Point = System.Windows.Point;
 using Rect = System.Windows.Rect;
@@ -29,6 +30,10 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     private double _horizontalOffset;
     private Size _viewport;
     private Size _extent;
+    private readonly HashSet<DisassemblyPreviewRow> _selectedItems = new();
+    private int _selectionAnchor = -1;
+    private bool _isDraggingSelection;
+    private bool _updatingSelection;
 
     public VirtualizedDisassemblyControl()
     {
@@ -77,6 +82,7 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
 
     public int VisibleRowCapacity => Math.Max(0, (int)Math.Ceiling(Math.Max(0, ActualHeight - HeaderHeight) / RowHeight) + 1);
     public int LastRenderedRowCount { get; private set; }
+    public IReadOnlyList<DisassemblyPreviewRow> SelectedItems => _items.Where(_selectedItems.Contains).ToArray();
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -116,7 +122,7 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
             int index = first + visible;
             double y = HeaderHeight + index * RowHeight - _verticalOffset;
             DisassemblyPreviewRow row = _items[index];
-            if (ReferenceEquals(row, SelectedItem))
+            if (_selectedItems.Contains(row) || ReferenceEquals(row, SelectedItem))
                 drawingContext.DrawRectangle(selection, null, new Rect(0, y, ActualWidth, RowHeight));
             drawingContext.DrawLine(borderPen, new Point(0, y + RowHeight), new Point(ActualWidth, y + RowHeight));
 
@@ -194,23 +200,57 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
+        Focus();
+        int index = RowIndexAt(e.GetPosition(this));
+        if (index >= 0)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0 && _selectionAnchor >= 0)
+                SelectRange(_selectionAnchor, index);
+            else if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                ToggleIndex(index);
+            else
+            {
+                _selectionAnchor = index;
+                SelectOnly(index);
+            }
+            _isDraggingSelection = true;
+            CaptureMouse();
+            e.Handled = true;
+        }
         base.OnMouseLeftButtonDown(e);
-        SelectRowAt(e.GetPosition(this));
     }
 
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
-        SelectRowAt(e.GetPosition(this));
+        int index = RowIndexAt(e.GetPosition(this));
+        if (index >= 0 && !_selectedItems.Contains(_items[index]))
+        {
+            _selectionAnchor = index;
+            SelectOnly(index);
+        }
         base.OnMouseRightButtonDown(e);
     }
 
-    private void SelectRowAt(Point point)
+    protected override void OnMouseMove(MouseEventArgs e)
     {
-        Focus();
-        if (point.Y < HeaderHeight) return;
-        int index = (int)Math.Floor((_verticalOffset + point.Y - HeaderHeight) / RowHeight);
-        SelectIndex(index);
+        if (_isDraggingSelection && e.LeftButton == MouseButtonState.Pressed && _selectionAnchor >= 0)
+        {
+            int index = RowIndexAt(e.GetPosition(this));
+            if (index >= 0) SelectRange(_selectionAnchor, index);
+        }
+        base.OnMouseMove(e);
     }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        _isDraggingSelection = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        base.OnMouseLeftButtonUp(e);
+    }
+
+    private int RowIndexAt(Point point) => point.Y < HeaderHeight || _items.Count == 0
+        ? -1
+        : Math.Clamp((int)Math.Floor((_verticalOffset + point.Y - HeaderHeight) / RowHeight), 0, _items.Count - 1);
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
@@ -235,26 +275,65 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
         };
         if (next != index || e.Key is Key.Home or Key.End)
         {
-            SelectIndex(Math.Clamp(next, 0, Math.Max(0, _items.Count - 1)));
+            SelectIndex(Math.Clamp(next, 0, Math.Max(0, _items.Count - 1)),
+                (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
             e.Handled = true;
         }
-        else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control && SelectedItem != null)
+        else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control && _selectedItems.Count > 0)
         {
-            Clipboard.SetText($"{SelectedItem.Address}  {SelectedItem.Bytes}  {SelectedItem.Instruction}");
+            Clipboard.SetText(string.Join(Environment.NewLine, SelectedItems.Select(item =>
+                $"{item.Address}  {item.Bytes}  {item.Instruction}")));
             e.Handled = true;
         }
         base.OnKeyDown(e);
     }
 
-    private void SelectIndex(int index)
+    private void SelectIndex(int index, bool extend = false)
     {
         if (index < 0 || index >= _items.Count) return;
-        SelectedItem = _items[index];
+        if (extend && _selectionAnchor >= 0) SelectRange(_selectionAnchor, index);
+        else
+        {
+            _selectionAnchor = index;
+            SelectOnly(index);
+        }
         double rowTop = index * RowHeight;
         double dataViewport = Math.Max(0, _viewport.Height - HeaderHeight);
         if (rowTop < _verticalOffset) SetVerticalOffset(rowTop);
         else if (rowTop + RowHeight > _verticalOffset + dataViewport)
             SetVerticalOffset(rowTop + RowHeight - dataViewport);
+    }
+
+    private void SelectOnly(int index)
+    {
+        _selectedItems.Clear();
+        _selectedItems.Add(_items[index]);
+        SetPrimarySelection(_items[index]);
+    }
+
+    private void SelectRange(int start, int end)
+    {
+        _selectedItems.Clear();
+        int first = Math.Min(start, end);
+        int last = Math.Max(start, end);
+        for (int index = first; index <= last; index++) _selectedItems.Add(_items[index]);
+        SetPrimarySelection(_items[end]);
+    }
+
+    private void ToggleIndex(int index)
+    {
+        DisassemblyPreviewRow item = _items[index];
+        if (!_selectedItems.Remove(item)) _selectedItems.Add(item);
+        _selectionAnchor = index;
+        SetPrimarySelection(_selectedItems.Contains(item) ? item : _selectedItems.LastOrDefault());
+    }
+
+    private void SetPrimarySelection(DisassemblyPreviewRow? item)
+    {
+        _updatingSelection = true;
+        SelectedItem = item;
+        _updatingSelection = false;
+        InvalidateVisual();
     }
 
     private int IndexOf(DisassemblyPreviewRow row)
@@ -277,13 +356,23 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
     private void RefreshItems()
     {
         _items = ItemsSource?.ToArray() ?? Array.Empty<DisassemblyPreviewRow>();
+        _selectedItems.RemoveWhere(item => !_items.Contains(item));
         UpdateScrollInfo(RenderSize);
-        if (SelectedItem != null && IndexOf(SelectedItem) < 0) SelectedItem = _items.FirstOrDefault();
+        if (SelectedItem != null && IndexOf(SelectedItem) < 0) SetPrimarySelection(_items.FirstOrDefault());
         InvalidateVisual();
     }
 
-    private static void OnSelectedItemChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((VirtualizedDisassemblyControl)sender).InvalidateVisual();
+    private static void OnSelectedItemChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var control = (VirtualizedDisassemblyControl)sender;
+        if (!control._updatingSelection && args.NewValue is DisassemblyPreviewRow item && !control._selectedItems.Contains(item))
+        {
+            control._selectedItems.Clear();
+            control._selectedItems.Add(item);
+            control._selectionAnchor = control.IndexOf(item);
+        }
+        control.InvalidateVisual();
+    }
 
     private Brush ResourceBrush(string key, Color fallback) => TryFindResource(key) as Brush ?? new SolidColorBrush(fallback);
     private FormattedText CreateText(string text, Brush brush, Typeface typeface) => new(

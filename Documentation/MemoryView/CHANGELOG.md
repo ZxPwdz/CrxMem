@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Automatic columns and drag selection
+
+- Stopped restoring stale pixel widths for bottom tool grids; leading columns now use bounded `SizeToCells` measurement and the final column fills remaining width.
+- Replaced the complete `ContextMenu` template to remove the operating-system icon gutter/white strip.
+- Added click-drag range selection without requiring Shift to disassembly and all bottom DataGrid panels.
+- Updated disassembly and grid copy actions to copy every selected line/row while retaining standard Shift and Ctrl selection.
+
 ## 2026-07-18 — MemoryView interaction polish
 
 - Replaced the platform-default menu and tab templates with opaque, compact dark templates that preserve normal hover, disabled, checked, shortcut, and submenu indicators.
