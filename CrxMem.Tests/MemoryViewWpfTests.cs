@@ -108,6 +108,7 @@ public sealed class MemoryViewWpfTests
 
                 Assert.Equal(2, dictionary.MergedDictionaries.Count);
                 Assert.Contains("MemoryView.PaneHeader", dictionary.Keys.Cast<object>());
+                Assert.Contains("MemoryView.DataGridStyle", dictionary.Keys.Cast<object>());
                 Assert.Contains("MemoryView.TopMenuItemTemplate", dictionary.Keys.Cast<object>());
                 Assert.Contains("MemoryView.SubmenuItemTemplate", dictionary.Keys.Cast<object>());
                 Assert.Contains("MemoryView.WindowBackgroundBrush",

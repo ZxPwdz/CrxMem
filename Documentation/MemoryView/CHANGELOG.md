@@ -1,5 +1,10 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Dark DataGrid style repair
+
+- Corrected the drag-selection style to inherit from an explicitly keyed CrxMem dark DataGrid base instead of the operating-system default style.
+- Restored dark headers, cells, rows, selections, and grid lines while retaining automatic columns and drag selection.
+
 ## 2026-07-18 — Automatic columns and drag selection
 
 - Stopped restoring stale pixel widths for bottom tool grids; leading columns now use bounded `SizeToCells` measurement and the final column fills remaining width.

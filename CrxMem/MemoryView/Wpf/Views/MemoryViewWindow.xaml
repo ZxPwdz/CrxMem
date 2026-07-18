@@ -54,7 +54,7 @@
                 <Separator/>
                 <MenuItem Header="_Copy Selected Rows" Click="PanelCopyRow_Click" InputGestureText="Ctrl+C"/>
             </ContextMenu>
-            <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+            <Style TargetType="DataGrid" BasedOn="{StaticResource MemoryView.DataGridStyle}">
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="PanelGrid_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseMove" Handler="PanelGrid_PreviewMouseMove"/>
                 <EventSetter Event="PreviewMouseLeftButtonUp" Handler="PanelGrid_PreviewMouseLeftButtonUp"/>

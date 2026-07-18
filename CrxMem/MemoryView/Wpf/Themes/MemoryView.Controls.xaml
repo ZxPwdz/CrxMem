@@ -157,7 +157,7 @@
             <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{StaticResource MemoryView.FocusBrush}"/><Setter Property="BorderThickness" Value="2"/></Trigger>
         </Style.Triggers>
     </Style>
-    <Style TargetType="DataGrid">
+    <Style x:Key="MemoryView.DataGridStyle" TargetType="DataGrid">
         <Setter Property="Background" Value="{StaticResource MemoryView.PanelBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
@@ -177,6 +177,7 @@
         <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
         <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
     </Style>
+    <Style TargetType="DataGrid" BasedOn="{StaticResource MemoryView.DataGridStyle}"/>
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{StaticResource MemoryView.HeaderBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/>
