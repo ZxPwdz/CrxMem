@@ -22,7 +22,8 @@ public partial class MemoryViewWindow : Window
             new StackService(new ProcessMemoryService(process), new ModuleService(process)),
             new WatchService(
                 new AddressExpressionService(new ProcessMemoryService(process), new ModuleService(process)),
-                new ProcessMemoryService(process)))
+                new ProcessMemoryService(process)),
+            new PatchService(new ProcessPatchMemoryAdapter(process)))
     {
     }
 
@@ -33,7 +34,8 @@ public partial class MemoryViewWindow : Window
         IDebugSessionService? debugSession = null,
         IRegisterService? registerService = null,
         IStackService? stackService = null,
-        IWatchService? watchService = null)
+        IWatchService? watchService = null,
+        IPatchService? patchService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
@@ -43,7 +45,8 @@ public partial class MemoryViewWindow : Window
             debugSession: debugSession,
             registerService: registerService,
             stackService: stackService,
-            watchService: watchService);
+            watchService: watchService,
+            patchService: patchService);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
@@ -139,6 +142,6 @@ public partial class MemoryViewWindow : Window
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,
-            "CrxMem Memory View WPF Preview\n\nRead-only process inspection shell. Debugging and patching commands remain disabled until their services are verified.",
+            "CrxMem Memory View WPF Preview\n\nInspection, native debug-state capture, and verified byte patch transactions are available. Assembly and breakpoint commands remain gated.",
             "About Memory View", MessageBoxButton.OK, MessageBoxImage.Information);
 }

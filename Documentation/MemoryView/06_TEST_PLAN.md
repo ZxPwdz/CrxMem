@@ -10,7 +10,7 @@
 
 Kernel-driver and injected-VEH tests are isolated, opt-in, and never part of the default managed CI run.
 
-The native attached-debugger integration test uses the repository-owned `CrxMem.DebugTarget` and is enabled with `CRXMEM_RUN_DEBUG_TESTS=1`. It must never select an unrelated process.
+The native attached-debugger integration test uses the repository-owned `CrxMem.DebugTarget` and is enabled with `CRXMEM_RUN_DEBUG_TESTS=1`. The native patch integration uses the same isolated target and `CRXMEM_RUN_PATCH_TESTS=1`. Neither test may select an unrelated process.
 
 ## Disassembly
 
@@ -52,6 +52,8 @@ The native attached-debugger integration test uses the repository-owned `CrxMem.
 
 ## Patch service
 
+Implemented in Phase 8: exact and NOP-padded patches, longer/stale rejection, protection/write/restore/flush/read-back failures, verified rollback and rollback failure, undo/redo, WPF command gating, and isolated native write/restore.
+
 - equal-length patch;
 - shorter patch with explicit NOP padding;
 - longer patch rejected;
@@ -61,8 +63,8 @@ The native attached-debugger integration test uses the repository-owned `CrxMem.
 - read-back mismatch reported;
 - cache invalidated after success;
 - undo/redo and restore all;
-- module rebase and missing/wrong module identity;
-- active/disabled/stale history serialization.
+- module rebase and missing/wrong module identity (pending persistence phase);
+- active/disabled/stale history serialization (pending persistence phase).
 
 ## Registers and threads
 

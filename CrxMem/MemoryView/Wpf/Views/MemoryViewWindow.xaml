@@ -208,13 +208,18 @@
                                 <TextBox Text="{Binding SelectedInstructionBytes}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8"/>
                                 <TextBlock Text="Instruction" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
                                 <TextBox Text="{Binding SelectedInstructionText}" IsReadOnly="True" FontFamily="{StaticResource MemoryView.MonoFont}" Height="60" TextWrapping="Wrap" Margin="0,3,0,8"/>
-                                <TextBlock Text="Read-only preview. Safe patch transactions arrive in Phase 8."
+                                <TextBlock Text="Replacement bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
+                                <TextBox Text="{Binding PatchBytes, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,5"/>
+                                <CheckBox Content="Explicitly NOP-pad shorter replacements" IsChecked="{Binding PadPatchWithNops}" Margin="0,2,0,8"/>
+                                <TextBlock Text="Writes verify original bytes, restore protection, flush the instruction cache, read back, and roll back on failure. Assembly stays disabled until its parser is extracted and tested."
                                            Foreground="{StaticResource MemoryView.TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
-                            <UniformGrid Grid.Row="2" Columns="3" Margin="8">
-                                <Button Content="Assemble" IsEnabled="False" Margin="2"/>
-                                <Button Content="Apply Patch" IsEnabled="False" Margin="2"/>
-                                <Button Content="New NOPs" IsEnabled="False" Margin="2"/>
+                            <UniformGrid Grid.Row="2" Columns="5" Margin="8">
+                                <Button Content="Assemble" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Assembler parser is not yet verified" Margin="2"/>
+                                <Button Content="Apply Patch" Command="{Binding ApplyPatchCommand}" Margin="2"/>
+                                <Button Content="New NOPs" Command="{Binding NopInstructionCommand}" Margin="2"/>
+                                <Button Content="Undo" Command="{Binding UndoPatchCommand}" Margin="2"/>
+                                <Button Content="Redo" Command="{Binding RedoPatchCommand}" Margin="2"/>
                             </UniformGrid>
                         </Grid>
                     </Border>

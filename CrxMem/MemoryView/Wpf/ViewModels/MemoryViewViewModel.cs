@@ -15,6 +15,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IRegisterService? _registerService;
     private readonly IStackService? _stackService;
     private readonly IWatchService? _watchService;
+    private readonly IPatchService? _patchService;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -24,6 +25,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _pauseCommand;
     private readonly AsyncRelayCommand _resumeCommand;
     private readonly AsyncRelayCommand _addWatchCommand;
+    private readonly AsyncRelayCommand _applyPatchCommand;
+    private readonly AsyncRelayCommand _nopInstructionCommand;
+    private readonly AsyncRelayCommand _undoPatchCommand;
+    private readonly AsyncRelayCommand _redoPatchCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -44,6 +49,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _flagsText = "—";
     private string _watchExpression = string.Empty;
     private RegisterSnapshot? _lastRegisterSnapshot;
+    private string _patchBytes = string.Empty;
+    private bool _padPatchWithNops = true;
+    private ulong _moduleBaseAddress;
 
     public MemoryViewViewModel(
         IMemoryViewDataService dataService,
@@ -51,7 +59,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IDebugSessionService? debugSession = null,
         IRegisterService? registerService = null,
         IStackService? stackService = null,
-        IWatchService? watchService = null)
+        IWatchService? watchService = null,
+        IPatchService? patchService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
@@ -59,6 +68,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _registerService = registerService;
         _stackService = stackService;
         _watchService = watchService;
+        _patchService = patchService;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
@@ -74,6 +84,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Paused);
         _addWatchCommand = new AsyncRelayCommand(AddWatchAsync,
             () => !IsBusy && _watchService != null && !string.IsNullOrWhiteSpace(WatchExpression));
+        _applyPatchCommand = new AsyncRelayCommand(ApplyPatchAsync, CanPatchSelection);
+        _nopInstructionCommand = new AsyncRelayCommand(NopInstructionAsync, CanPatchSelection);
+        _undoPatchCommand = new AsyncRelayCommand(UndoPatchAsync,
+            () => !IsBusy && _patchService?.CanUndo == true);
+        _redoPatchCommand = new AsyncRelayCommand(RedoPatchAsync,
+            () => !IsBusy && _patchService?.CanRedo == true);
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
@@ -92,6 +108,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand PauseCommand => _pauseCommand;
     public ICommand ResumeCommand => _resumeCommand;
     public ICommand AddWatchCommand => _addWatchCommand;
+    public ICommand ApplyPatchCommand => _applyPatchCommand;
+    public ICommand NopInstructionCommand => _nopInstructionCommand;
+    public ICommand UndoPatchCommand => _undoPatchCommand;
+    public ICommand RedoPatchCommand => _redoPatchCommand;
 
     public string AddressExpression
     {
@@ -118,6 +138,18 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         set { if (SetField(ref _watchExpression, value)) _addWatchCommand.RaiseCanExecuteChanged(); }
     }
 
+    public string PatchBytes
+    {
+        get => _patchBytes;
+        set { if (SetField(ref _patchBytes, value)) _applyPatchCommand.RaiseCanExecuteChanged(); }
+    }
+
+    public bool PadPatchWithNops
+    {
+        get => _padPatchWithNops;
+        set => SetField(ref _padPatchWithNops, value);
+    }
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -129,6 +161,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             _backCommand.RaiseCanExecuteChanged();
             _forwardCommand.RaiseCanExecuteChanged();
             RaiseDebugCanExecuteChanged();
+            RaisePatchCanExecuteChanged();
         }
     }
 
@@ -142,6 +175,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(SelectedInstructionBytes));
             OnPropertyChanged(nameof(SelectedInstructionText));
             OnPropertyChanged(nameof(SelectedInstructionComment));
+            PatchBytes = value?.Bytes ?? string.Empty;
+            RaisePatchCanExecuteChanged();
         }
     }
 
@@ -257,6 +292,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         SessionTitle = $"{snapshot.ProcessName}.exe ({snapshot.ProcessId})";
         ModuleName = snapshot.ModuleName;
         ModuleBase = snapshot.ModuleBase == 0 ? "—" : snapshot.ModuleBase.ToString("X16");
+        _moduleBaseAddress = snapshot.ModuleBase;
         Architecture = snapshot.Architecture;
         CurrentAddress = snapshot.Address.ToString("X16");
         Offset = snapshot.Offset;
@@ -296,6 +332,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             _debugSession.StateChanged -= DebugSession_StateChanged;
             if (_debugSession is IDisposable disposable) disposable.Dispose();
         }
+        if (_patchService is IDisposable patchDisposable) patchDisposable.Dispose();
     }
 
     private async Task AttachDebuggerAsync()
@@ -425,6 +462,91 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             if (index < Watches.Count && Watches[index].Expression == existing[index].Expression)
                 Watches[index] = refreshed;
         }
+    }
+
+    private bool CanPatchSelection() =>
+        !IsBusy && _patchService != null && SelectedInstruction != null &&
+        TryParseBytes(SelectedInstruction.Bytes, out _) &&
+        TryParseBytes(PatchBytes, out _);
+
+    private async Task ApplyPatchAsync()
+    {
+        if (_patchService == null || SelectedInstruction == null ||
+            !TryParseBytes(SelectedInstruction.Bytes, out byte[] original) ||
+            !TryParseBytes(PatchBytes, out byte[] replacement)) return;
+
+        IsBusy = true;
+        try
+        {
+            PatchResult result = await _patchService.ApplyAsync(new PatchRequest(
+                SelectedInstruction.RuntimeAddress,
+                original,
+                replacement,
+                PadPatchWithNops,
+                SelectedInstruction.Instruction,
+                ModuleName == "—" ? null : ModuleName,
+                _moduleBaseAddress != 0 && SelectedInstruction.RuntimeAddress >= _moduleBaseAddress
+                    ? SelectedInstruction.RuntimeAddress - _moduleBaseAddress
+                    : null));
+            Status = result.Message;
+            if (result.Succeeded) await RefreshAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+            RaisePatchCanExecuteChanged();
+        }
+    }
+
+    private async Task NopInstructionAsync()
+    {
+        if (!TryParseBytes(SelectedInstruction?.Bytes, out byte[] original)) return;
+        PatchBytes = string.Join(' ', Enumerable.Repeat("90", original.Length));
+        await ApplyPatchAsync();
+    }
+
+    private async Task UndoPatchAsync()
+    {
+        if (_patchService == null) return;
+        PatchResult result = await _patchService.UndoAsync();
+        Status = result.Message;
+        if (result.Succeeded) await RefreshAsync();
+        RaisePatchCanExecuteChanged();
+    }
+
+    private async Task RedoPatchAsync()
+    {
+        if (_patchService == null) return;
+        PatchResult result = await _patchService.RedoAsync();
+        Status = result.Message;
+        if (result.Succeeded) await RefreshAsync();
+        RaisePatchCanExecuteChanged();
+    }
+
+    private static bool TryParseBytes(string? text, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        string[] tokens = text.Split(new[] { ' ', '\t', ',', '-' }, StringSplitOptions.RemoveEmptyEntries);
+        var parsed = new byte[tokens.Length];
+        for (int index = 0; index < tokens.Length; index++)
+        {
+            string token = tokens[index].StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? tokens[index][2..]
+                : tokens[index];
+            if (token.Length != 2 || !byte.TryParse(token, System.Globalization.NumberStyles.HexNumber,
+                    System.Globalization.CultureInfo.InvariantCulture, out parsed[index])) return false;
+        }
+        bytes = parsed;
+        return bytes.Length > 0;
+    }
+
+    private void RaisePatchCanExecuteChanged()
+    {
+        _applyPatchCommand.RaiseCanExecuteChanged();
+        _nopInstructionCommand.RaiseCanExecuteChanged();
+        _undoPatchCommand.RaiseCanExecuteChanged();
+        _redoPatchCommand.RaiseCanExecuteChanged();
     }
 
     private void RaiseDebugCanExecuteChanged()

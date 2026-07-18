@@ -42,6 +42,29 @@ public sealed class MemoryViewWpfTests
     }
 
     [Fact]
+    public async Task VerifiedPatchCommands_EnableOnlyForValidSelectedBytes()
+    {
+        var patchService = new FakePatchService();
+        using var viewModel = new MemoryViewViewModel(
+            new FakeMemoryViewDataService(), patchService: patchService);
+        await viewModel.InitializeAsync(0);
+
+        Assert.True(viewModel.ApplyPatchCommand.CanExecute(null));
+        viewModel.PatchBytes = "not bytes";
+        Assert.False(viewModel.ApplyPatchCommand.CanExecute(null));
+        viewModel.PatchBytes = "90 90 90";
+        Assert.True(viewModel.ApplyPatchCommand.CanExecute(null));
+
+        viewModel.ApplyPatchCommand.Execute(null);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (patchService.LastRequest == null) await Task.Delay(10, timeout.Token);
+
+        Assert.Equal(0x140001000UL, patchService.LastRequest.Address);
+        Assert.Equal(new byte[] { 0x48, 0x89, 0xD8 }, patchService.LastRequest.ExpectedOriginalBytes);
+        Assert.Equal(new byte[] { 0x90, 0x90, 0x90 }, patchService.LastRequest.ReplacementBytes);
+    }
+
+    [Fact]
     public void ThemeResources_LoadOnStaThread()
     {
         Exception? failure = null;
@@ -153,5 +176,29 @@ public sealed class MemoryViewWpfTests
     {
         public MemoryViewLayoutSettings Load() => new();
         public void Save(MemoryViewLayoutSettings settings) { }
+    }
+
+    private sealed class FakePatchService : IPatchService
+    {
+        public PatchRequest? LastRequest { get; private set; }
+        public IReadOnlyList<PatchRecord> History => Array.Empty<PatchRecord>();
+        public bool CanUndo => false;
+        public bool CanRedo => false;
+
+        public Task<PatchResult> ApplyAsync(PatchRequest request, CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            var record = new PatchRecord(Guid.NewGuid(), request.Address,
+                request.ExpectedOriginalBytes, request.ReplacementBytes, request.Description,
+                request.ModuleName, request.ModuleRelativeAddress, DateTimeOffset.UtcNow, true, false);
+            return Task.FromResult(new PatchResult(PatchStatus.Applied, PatchFailureStage.None, "Applied", record));
+        }
+
+        public Task<PatchResult> RestoreAsync(Guid patchId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<PatchResult> UndoAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
+        public Task<PatchResult> RedoAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
     }
 }

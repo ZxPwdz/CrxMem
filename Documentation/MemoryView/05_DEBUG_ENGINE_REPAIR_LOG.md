@@ -58,3 +58,11 @@ Entries will be appended when a command obtains a tested implementation path.
 - Detach now continues the held event, drains queued startup/debug events to a bounded quiet point, and retries transient access-denied results before failing visibly.
 - Registers are captured only while a breakpoint/single-step event is held for the selected thread.
 - Stepping and breakpoint mutation remain disabled pending their transaction services.
+
+## Phase 8 patch transaction boundary — 2026-07-18
+
+- Added a patch service that refuses stale or oversized replacements before changing target state.
+- Every successful write now requires restoration of the exact original protection, instruction-cache flush, cache invalidation, and byte-for-byte read-back.
+- A failure after bytes have been written triggers a best-effort verified rollback; rollback failure is elevated as the terminal error and is never reported as success.
+- WPF raw-byte patching, NOP replacement, undo, and redo use this boundary. The legacy `WriteWithProtection` callers are unchanged for compatibility and are not treated as verified transactions.
+- Breakpoint insertion is still disabled until Phase 9 owns original bytes, exception/IP correction, trap-flag reinsertion, and detach cleanup.

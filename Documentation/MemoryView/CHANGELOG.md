@@ -1,5 +1,30 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 8 verified byte patch transactions
+
+### Features added or repaired
+
+- Added `IPatchService` and a Windows process adapter without changing the legacy writer's compatibility behavior.
+- Added expected-original-byte checks, exact/explicit-NOP-padded size validation, temporary protection changes, mandatory protection restoration, instruction-cache flush, fresh read-back, and automatic rollback after post-write failures.
+- Added in-memory patch history with stale detection, restore, undo, and redo.
+- Enabled raw byte patch, NOP, undo, and redo controls in the WPF patch pane only through the verified service path.
+- Kept free-form assembly disabled because the legacy assembler parser remains UI-coupled and has not passed the same validation boundary.
+
+### Tests added
+
+- Twelve fake-adapter transaction tests cover validation, stale bytes, every native stage, rollback failure, and history transitions.
+- Added WPF command-gating coverage and an opt-in real Windows write/restore test against a stable offset in `CrxMem.DebugTarget`'s pinned buffer.
+- Release result: 70 default tests passed, 0 failed; `CRXMEM_RUN_PATCH_TESTS=1` integration passed.
+
+### Known issues
+
+- Patch history is session-only; module identity validation and serialization are still required before persisted recovery is safe.
+- The patch pane accepts bytes, not assembly source. Register writes and hex nibble editing remain disabled.
+
+### Next recommended task
+
+Phase 9: build breakpoint ownership and debug commands on the verified patch and native event-loop boundaries.
+
 ## 2026-07-18 — Phase 7 read-only hex, stack, and watch tools
 
 ### Features added or repaired
