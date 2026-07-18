@@ -13,6 +13,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly INavigationHistoryService _history;
     private readonly IDebugSessionService? _debugSession;
     private readonly IRegisterService? _registerService;
+    private readonly IStackService? _stackService;
+    private readonly IWatchService? _watchService;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -21,6 +23,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _detachCommand;
     private readonly AsyncRelayCommand _pauseCommand;
     private readonly AsyncRelayCommand _resumeCommand;
+    private readonly AsyncRelayCommand _addWatchCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -39,17 +42,23 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _debugStopReason = "Debugger detached";
     private bool _hasRegisterSnapshot;
     private string _flagsText = "—";
+    private string _watchExpression = string.Empty;
+    private RegisterSnapshot? _lastRegisterSnapshot;
 
     public MemoryViewViewModel(
         IMemoryViewDataService dataService,
         INavigationHistoryService? history = null,
         IDebugSessionService? debugSession = null,
-        IRegisterService? registerService = null)
+        IRegisterService? registerService = null,
+        IStackService? stackService = null,
+        IWatchService? watchService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
         _debugSession = debugSession;
         _registerService = registerService;
+        _stackService = stackService;
+        _watchService = watchService;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
@@ -63,6 +72,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Running);
         _resumeCommand = new AsyncRelayCommand(ResumeDebuggerAsync,
             () => !IsBusy && _debugSession?.Snapshot.State == DebugSessionState.Paused);
+        _addWatchCommand = new AsyncRelayCommand(AddWatchAsync,
+            () => !IsBusy && _watchService != null && !string.IsNullOrWhiteSpace(WatchExpression));
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
@@ -70,6 +81,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<HexPreviewRow> HexRows { get; } = new();
     public ObservableCollection<string> RecentExpressions { get; } = new();
     public ObservableCollection<RegisterValue> Registers { get; } = new();
+    public ObservableCollection<StackPreviewRow> StackRows { get; } = new();
+    public ObservableCollection<WatchPreviewRow> Watches { get; } = new();
     public ICommand NavigateCommand => _navigateCommand;
     public AsyncRelayCommand RefreshCommand { get; }
     public ICommand BackCommand => _backCommand;
@@ -78,6 +91,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand DetachCommand => _detachCommand;
     public ICommand PauseCommand => _pauseCommand;
     public ICommand ResumeCommand => _resumeCommand;
+    public ICommand AddWatchCommand => _addWatchCommand;
 
     public string AddressExpression
     {
@@ -98,6 +112,11 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public string DebugStopReason { get => _debugStopReason; private set => SetField(ref _debugStopReason, value); }
     public string FlagsText { get => _flagsText; private set => SetField(ref _flagsText, value); }
     public bool HasRegisterSnapshot { get => _hasRegisterSnapshot; private set => SetField(ref _hasRegisterSnapshot, value); }
+    public string WatchExpression
+    {
+        get => _watchExpression;
+        set { if (SetField(ref _watchExpression, value)) _addWatchCommand.RaiseCanExecuteChanged(); }
+    }
 
     public bool IsBusy
     {
@@ -205,6 +224,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             if (generation != Interlocked.Read(ref _navigationGeneration)) return;
             Apply(snapshot);
+            await RefreshWatchesAsync();
             AddressExpression = expression;
             if (selectedAddress.HasValue)
                 SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selectedAddress.Value)
@@ -246,8 +266,21 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 
         Instructions.Clear();
         foreach (DisassemblyPreviewRow row in snapshot.Instructions) Instructions.Add(row);
+        Dictionary<ulong, byte[]> previousHex = HexRows
+            .Where(row => row.Data != null)
+            .ToDictionary(row => row.RuntimeAddress, row => row.Data!);
         HexRows.Clear();
-        foreach (HexPreviewRow row in snapshot.HexRows) HexRows.Add(row);
+        foreach (HexPreviewRow row in snapshot.HexRows)
+        {
+            IReadOnlySet<int>? changed = null;
+            if (row.Data != null && previousHex.TryGetValue(row.RuntimeAddress, out byte[]? oldData))
+            {
+                changed = Enumerable.Range(0, Math.Min(row.Data.Length, oldData.Length))
+                    .Where(index => row.Data[index] != oldData[index])
+                    .ToHashSet();
+            }
+            HexRows.Add(row with { ChangedByteIndices = changed });
+        }
         SelectedInstruction = Instructions.FirstOrDefault();
         Status = snapshot.Status;
         OnPropertyChanged(nameof(SelectedInstructionAddress));
@@ -289,6 +322,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             await _debugSession.DetachAsync(CancellationToken.None);
             Registers.Clear();
             HasRegisterSnapshot = false;
+            StackRows.Clear();
+            _lastRegisterSnapshot = null;
         }
         catch (Exception ex)
         {
@@ -352,10 +387,44 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 
         Registers.Clear();
         foreach (RegisterValue register in result.Snapshot.Registers) Registers.Add(register);
+        _lastRegisterSnapshot = result.Snapshot;
         FlagsText = $"0x{result.Snapshot.Flags:X8}";
         HasRegisterSnapshot = true;
         SelectedInstruction = Instructions.FirstOrDefault(row =>
             row.RuntimeAddress == result.Snapshot.InstructionPointer) ?? SelectedInstruction;
+        await RefreshStackAsync(result.Snapshot);
+        await RefreshWatchesAsync();
+    }
+
+    private async Task RefreshStackAsync(RegisterSnapshot snapshot)
+    {
+        if (_stackService == null) return;
+        IReadOnlyList<StackPreviewRow> rows = await _stackService.ReadAsync(snapshot, 128, CancellationToken.None);
+        if (_lastRegisterSnapshot != snapshot) return;
+        StackRows.Clear();
+        foreach (StackPreviewRow row in rows) StackRows.Add(row);
+    }
+
+    private async Task AddWatchAsync()
+    {
+        if (_watchService == null || string.IsNullOrWhiteSpace(WatchExpression)) return;
+        string expression = WatchExpression.Trim();
+        WatchPreviewRow row = await _watchService.EvaluateAsync(expression, null, CancellationToken.None);
+        Watches.Add(row);
+        WatchExpression = string.Empty;
+    }
+
+    private async Task RefreshWatchesAsync()
+    {
+        if (_watchService == null || Watches.Count == 0) return;
+        WatchPreviewRow[] existing = Watches.ToArray();
+        for (int index = 0; index < existing.Length; index++)
+        {
+            WatchPreviewRow refreshed = await _watchService.EvaluateAsync(
+                existing[index].Expression, existing[index], CancellationToken.None);
+            if (index < Watches.Count && Watches[index].Expression == existing[index].Expression)
+                Watches[index] = refreshed;
+        }
     }
 
     private void RaiseDebugCanExecuteChanged()

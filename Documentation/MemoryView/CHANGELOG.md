@@ -1,5 +1,30 @@
 # MemoryView Development Changelog
 
+## 2026-07-18 — Phase 7 read-only hex, stack, and watch tools
+
+### Features added or repaired
+
+- Replaced the interim hex DataGrid with a bounded visible-row WPF renderer supporting byte selection, copying, and changed-byte highlighting.
+- Added selected-paused-thread stack reads using the verified stack pointer and target pointer width.
+- Added clearly labelled heuristic module/RVA annotations for stack values that point into loaded modules.
+- Added expression-based watches with address/value/status display and previous-value change tracking.
+- Synchronized stack and watch refresh with verified register snapshots and address navigation.
+
+### Tests added
+
+- Stack pointer-width parsing, heuristic labels, watch value changes/errors, and a 1,000-row hex-render virtualization smoke test.
+- Release result: 57 default tests passed, 0 failed; the opt-in native integration test passed.
+
+### Known issues
+
+- Hex editing and paste remain disabled until the safe patch/write transaction service exists.
+- Stack labels are heuristic, not an unwound call stack.
+- Watch removal, grouping, type selection, and persistence remain deferred.
+
+### Next recommended task
+
+Phase 8: implement verified patch transactions, protection restoration, instruction-cache flush, read-back, and recoverable history before enabling writes.
+
 ## 2026-07-18 — Phase 6B native debug session and registers UI
 
 ### Features added or repaired

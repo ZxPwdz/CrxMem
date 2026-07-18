@@ -86,6 +86,19 @@ public sealed class MemoryViewWpfTests
                 bitmap.Render(renderer);
                 Assert.InRange(renderer.LastRenderedRowCount, 1, renderer.VisibleRowCapacity);
                 Assert.True(renderer.ExtentHeight > renderer.ViewportHeight);
+
+                var hexRenderer = new VirtualizedHexDumpControl
+                {
+                    ItemsSource = Enumerable.Range(0, 1000)
+                        .Select(index => new HexPreviewRow(
+                            index.ToString("X16"), "00", ".", (ulong)index, new byte[] { 0 }))
+                        .ToArray()
+                };
+                hexRenderer.Measure(new System.Windows.Size(800, 250));
+                hexRenderer.Arrange(new Rect(0, 0, 800, 250));
+                var hexBitmap = new RenderTargetBitmap(800, 250, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+                hexBitmap.Render(hexRenderer);
+                Assert.InRange(hexRenderer.LastRenderedRowCount, 1, hexRenderer.VisibleRowCapacity + 1);
             }
             catch (Exception ex)
             {

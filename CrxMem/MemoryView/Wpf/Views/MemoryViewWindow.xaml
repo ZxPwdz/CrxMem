@@ -162,16 +162,36 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition x:Name="patchEditorColumn" Width="350" MinWidth="280"/></Grid.ColumnDefinitions>
                     <TabControl Grid.Column="0">
                         <TabItem Header="Hex Dump">
-                            <DataGrid ItemsSource="{Binding HexRows}" AutoGenerateColumns="False" HeadersVisibility="None">
+                            <memoryControls:VirtualizedHexDumpControl ItemsSource="{Binding HexRows}"/>
+                        </TabItem>
+                        <TabItem Header="Stack">
+                            <DataGrid ItemsSource="{Binding StackRows}" AutoGenerateColumns="False" IsReadOnly="True">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Binding="{Binding Address}" Width="155"/>
-                                    <DataGridTextColumn Binding="{Binding Bytes}" Width="*"/>
-                                    <DataGridTextColumn Binding="{Binding Ascii}" Width="150"/>
+                                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
+                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="155"/>
+                                    <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </TabItem>
-                        <TabItem Header="Stack" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Requires a truthful paused-thread snapshot"/>
-                        <TabItem Header="Watch" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Requires the address-expression service"/>
+                        <TabItem Header="Watch">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <DockPanel Margin="8,6">
+                                    <Button Content="Add" DockPanel.Dock="Right" Command="{Binding AddWatchCommand}" Margin="5,0,0,0"/>
+                                    <TextBox Text="{Binding WatchExpression, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}">
+                                        <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding AddWatchCommand}"/></TextBox.InputBindings>
+                                    </TextBox>
+                                </DockPanel>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding Watches}" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Expression" Binding="{Binding Expression}" Width="*"/>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="145"/>
+                                        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="145"/>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="Breakpoints" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Requires the breakpoint service"/>
                         <TabItem Header="Call Stack" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Call-stack unwinding is not implemented"/>
                         <TabItem Header="Memory Map" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="WPF memory-map panel is planned"/>

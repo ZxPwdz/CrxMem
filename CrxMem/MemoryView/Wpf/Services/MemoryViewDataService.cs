@@ -126,7 +126,9 @@ public sealed class MemoryViewDataService : IMemoryViewDataService
             rows.Add(new HexPreviewRow(
                 (alignedAddress + (ulong)offset).ToString(is64Bit ? "X16" : "X8"),
                 bytes,
-                ascii.ToString()));
+                ascii.ToString(),
+                alignedAddress + (ulong)offset,
+                row.ToArray()));
         }
 
         return rows;

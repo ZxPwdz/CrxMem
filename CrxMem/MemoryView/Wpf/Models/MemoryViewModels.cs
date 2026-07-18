@@ -23,7 +23,33 @@ public sealed record DisassemblyPreviewRow(
     IReadOnlyList<DisassemblyToken>? Tokens = null,
     ulong? FlowTarget = null);
 
-public sealed record HexPreviewRow(string Address, string Bytes, string Ascii);
+public sealed record HexPreviewRow(
+    string Address,
+    string Bytes,
+    string Ascii,
+    ulong RuntimeAddress = 0,
+    byte[]? Data = null,
+    IReadOnlySet<int>? ChangedByteIndices = null);
+
+public sealed record StackPreviewRow(
+    string Address,
+    string Value,
+    string Label,
+    ulong RuntimeAddress,
+    ulong PointerValue,
+    bool IsHeuristic);
+
+public sealed record WatchPreviewRow(
+    string Expression,
+    string Address,
+    string Value,
+    string Status,
+    ulong? RuntimeAddress,
+    ulong? NumericValue,
+    ulong? PreviousValue = null)
+{
+    public bool HasChanged => PreviousValue.HasValue && NumericValue.HasValue && PreviousValue != NumericValue;
+}
 
 public sealed record MemoryViewSnapshot(
     ulong Address,
