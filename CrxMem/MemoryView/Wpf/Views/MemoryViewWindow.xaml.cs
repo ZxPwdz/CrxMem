@@ -23,12 +23,12 @@ public partial class MemoryViewWindow : Window
     private DataGrid? _dragSelectionGrid;
     private int _dragSelectionAnchor = -1;
 
-    public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default)
-        : this(CreateComposition(process), startAddress)
+    public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default, IMemoryViewHostBridge? hostBridge = null)
+        : this(CreateComposition(process), startAddress, hostBridge)
     {
     }
 
-    private MemoryViewWindow(MemoryViewComposition composition, IntPtr startAddress)
+    private MemoryViewWindow(MemoryViewComposition composition, IntPtr startAddress, IMemoryViewHostBridge? hostBridge)
         : this(
             composition.DataService,
             composition.LayoutStore,
@@ -44,7 +44,9 @@ public partial class MemoryViewWindow : Window
             composition.ModuleService,
             composition.MetadataService,
             composition.ThreadService,
-            composition.MemoryMapService)
+            composition.MemoryMapService,
+            composition.HexMemorySourceFactory,
+            hostBridge)
     {
     }
 
@@ -63,7 +65,9 @@ public partial class MemoryViewWindow : Window
         IModuleService? moduleService = null,
         IEditableMemoryMetadataService? editableMetadata = null,
         IThreadService? threadService = null,
-        IMemoryMapService? memoryMapService = null)
+        IMemoryMapService? memoryMapService = null,
+        IHexMemorySourceFactory? hexMemorySourceFactory = null,
+        IMemoryViewHostBridge? hostBridge = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
@@ -81,7 +85,9 @@ public partial class MemoryViewWindow : Window
             moduleService: moduleService,
             editableMetadata: editableMetadata,
             threadService: threadService,
-            memoryMapService: memoryMapService);
+            memoryMapService: memoryMapService,
+            hexMemorySourceFactory: hexMemorySourceFactory,
+            hostBridge: hostBridge);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
@@ -410,6 +416,53 @@ public partial class MemoryViewWindow : Window
             System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, disassemblyView.SelectedItems.Select(row => row.Bytes)));
     }
 
+    private void CopyModuleRva_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_viewModel.SelectedInstructionExpression))
+            System.Windows.Clipboard.SetText(_viewModel.SelectedInstructionExpression);
+    }
+
+    private async void FollowInHex_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.SelectedInstruction is not { } row) return;
+        toolsTabControl.SelectedItem = hexDumpTab;
+        await _viewModel.NavigateHexToAddressAsync(row.RuntimeAddress);
+        hexDumpView.Focus();
+    }
+
+    private async void AddToWatch_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.AddSelectedInstructionToWatchAsync();
+        toolsTabControl.SelectedItem = watchTab;
+    }
+
+    private void AddToAddressList_Click(object sender, RoutedEventArgs e)
+    {
+        HostCommandResult result = _viewModel.AddSelectedInstructionToHost();
+        if (!result.Succeeded)
+            System.Windows.MessageBox.Show(this, result.Message, "Address-list transfer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private void SetHardwareBreakpointContext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.SetHardwareBreakpointCommand.CanExecute(null))
+            _viewModel.SetHardwareBreakpointCommand.Execute(null);
+    }
+
+    private void AssembleAtAddress_Click(object sender, RoutedEventArgs e)
+    {
+        SetPatchEditorVisible(true);
+        assemblySourceBox.Focus();
+        assemblySourceBox.SelectAll();
+    }
+
+    private void InspectMemoryRegion_Click(object sender, RoutedEventArgs e) =>
+        toolsTabControl.SelectedItem = memoryMapTab;
+
+    private void InspectModule_Click(object sender, RoutedEventArgs e) =>
+        toolsTabControl.SelectedItem = modulesTab;
+
     private async void EditMetadata_Click(object sender, RoutedEventArgs e) =>
         await EditSelectedMetadataAsync();
 
@@ -450,6 +503,38 @@ public partial class MemoryViewWindow : Window
     private void CopyHexAddress_Click(object sender, RoutedEventArgs e)
     {
         if (hexDumpView.SelectedRangeAddress is ulong address) System.Windows.Clipboard.SetText($"{address:X16}");
+    }
+
+    private void CopyHexModuleRva_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address) return;
+        System.Windows.Clipboard.SetText(_viewModel.GetAddressExpression(address));
+    }
+
+    private async void EditHexMetadata_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address) return;
+        EditableMemoryMetadata current = _viewModel.GetMetadataAtAddress(address);
+        var dialog = new MetadataEditDialog(current.Comment, current.IsBookmarked, current.Label) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        await _viewModel.UpdateMetadataAtAddressAsync(address, new EditableMemoryMetadata(
+            dialog.Comment, dialog.IsBookmarked, dialog.BookmarkLabel));
+    }
+
+    private async void AddHexToWatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address) return;
+        await _viewModel.AddAddressToWatchAsync(address);
+        toolsTabControl.SelectedItem = watchTab;
+    }
+
+    private void AddHexToAddressList_Click(object sender, RoutedEventArgs e)
+    {
+        if (hexDumpView.SelectedRangeAddress is not ulong address) return;
+        HostCommandResult result = _viewModel.AddAddressToHost(address);
+        if (!result.Succeeded)
+            System.Windows.MessageBox.Show(this, result.Message, "Address-list transfer",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private async void EditHexBytes_Click(object sender, RoutedEventArgs e)
@@ -509,7 +594,8 @@ public partial class MemoryViewWindow : Window
             modules,
             metadata,
             new ProcessThreadService(process),
-            new ProcessMemoryMapService(process));
+            new ProcessMemoryMapService(process),
+            new HexMemorySourceFactory(memory));
     }
 
     private sealed record MemoryViewComposition(
@@ -524,7 +610,8 @@ public partial class MemoryViewWindow : Window
         IModuleService ModuleService,
         IEditableMemoryMetadataService MetadataService,
         IThreadService ThreadService,
-        IMemoryMapService MemoryMapService);
+        IMemoryMapService MemoryMapService,
+        IHexMemorySourceFactory HexMemorySourceFactory);
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,

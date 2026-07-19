@@ -11,6 +11,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly IMemoryViewDataService _dataService;
     private readonly INavigationHistoryService _history;
+    private readonly INavigationHistoryService _hexHistory = new NavigationHistoryService();
     private readonly IDebugSessionService? _debugSession;
     private readonly IRegisterService? _registerService;
     private readonly IStackService? _stackService;
@@ -23,6 +24,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IEditableMemoryMetadataService? _editableMetadata;
     private readonly IThreadService? _threadService;
     private readonly IMemoryMapService? _memoryMapService;
+    private readonly IHexMemorySourceFactory? _hexMemorySourceFactory;
+    private readonly IMemoryViewHostBridge? _hostBridge;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -46,6 +49,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly AsyncRelayCommand _toggleSelectedBreakpointCommand;
     private readonly AsyncRelayCommand _setHardwareBreakpointCommand;
     private readonly AsyncRelayCommand _clearHardwareBreakpointCommand;
+    private readonly AsyncRelayCommand _navigateHexCommand;
+    private readonly AsyncRelayCommand _hexBackCommand;
+    private readonly AsyncRelayCommand _hexForwardCommand;
+    private readonly AsyncRelayCommand _refreshHexCommand;
     private CancellationTokenSource? _navigationCancellation;
     private long _navigationGeneration;
     private string _addressExpression = string.Empty;
@@ -76,6 +83,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private string _hardwareBreakpointAddress = string.Empty;
     private HardwareBreakpointAccess _hardwareBreakpointAccess = HardwareBreakpointAccess.Execute;
     private HardwareBreakpointSize _hardwareBreakpointSize = HardwareBreakpointSize.Byte1;
+    private IHexMemorySource? _hexMemorySource;
+    private IEnumerable<HexPreviewRow> _hexItems;
+    private ulong _hexFocusAddress;
+    private string _hexAddressExpression = string.Empty;
 
     public MemoryViewViewModel(
         IMemoryViewDataService dataService,
@@ -91,7 +102,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IModuleService? moduleService = null,
         IEditableMemoryMetadataService? editableMetadata = null,
         IThreadService? threadService = null,
-        IMemoryMapService? memoryMapService = null)
+        IMemoryMapService? memoryMapService = null,
+        IHexMemorySourceFactory? hexMemorySourceFactory = null,
+        IMemoryViewHostBridge? hostBridge = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
@@ -107,6 +120,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _editableMetadata = editableMetadata;
         _threadService = threadService;
         _memoryMapService = memoryMapService;
+        _hexMemorySourceFactory = hexMemorySourceFactory;
+        _hostBridge = hostBridge;
+        _hexItems = HexRows;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
@@ -142,11 +158,24 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             () => CanUsePausedExecutionCommand() && TryParseAddress(HardwareBreakpointAddress, out _));
         _clearHardwareBreakpointCommand = new AsyncRelayCommand(ClearHardwareBreakpointAsync,
             () => CanUsePausedExecutionCommand() && SelectedHardwareBreakpoint != null);
+        _navigateHexCommand = new AsyncRelayCommand(NavigateHexFromExpressionAsync,
+            () => !IsBusy && !string.IsNullOrWhiteSpace(HexAddressExpression));
+        _hexBackCommand = new AsyncRelayCommand(GoHexBackAsync, () => !IsBusy && _hexHistory.CanGoBack);
+        _hexForwardCommand = new AsyncRelayCommand(GoHexForwardAsync, () => !IsBusy && _hexHistory.CanGoForward);
+        _refreshHexCommand = new AsyncRelayCommand(RefreshHexAsync,
+            () => !IsBusy && HexFocusAddress != 0 && _hexMemorySourceFactory != null);
         if (_debugSession != null) _debugSession.StateChanged += DebugSession_StateChanged;
     }
 
     public RangeObservableCollection<DisassemblyPreviewRow> Instructions { get; } = new();
     public ObservableCollection<HexPreviewRow> HexRows { get; } = new();
+    public IEnumerable<HexPreviewRow> HexItems { get => _hexItems; private set => SetField(ref _hexItems, value); }
+    public ulong HexFocusAddress { get => _hexFocusAddress; private set => SetField(ref _hexFocusAddress, value); }
+    public string HexAddressExpression
+    {
+        get => _hexAddressExpression;
+        set { if (SetField(ref _hexAddressExpression, value)) _navigateHexCommand.RaiseCanExecuteChanged(); }
+    }
     public ObservableCollection<string> RecentExpressions { get; } = new();
     public ObservableCollection<RegisterValue> Registers { get; } = new();
     public ObservableCollection<StackPreviewRow> StackRows { get; } = new();
@@ -183,6 +212,11 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ToggleSelectedBreakpointCommand => _toggleSelectedBreakpointCommand;
     public ICommand SetHardwareBreakpointCommand => _setHardwareBreakpointCommand;
     public ICommand ClearHardwareBreakpointCommand => _clearHardwareBreakpointCommand;
+    public ICommand NavigateHexCommand => _navigateHexCommand;
+    public ICommand HexBackCommand => _hexBackCommand;
+    public ICommand HexForwardCommand => _hexForwardCommand;
+    public ICommand RefreshHexCommand => _refreshHexCommand;
+    public bool CanAddSelectedAddressToHost => _hostBridge?.CanAddAddress == true && SelectedInstruction != null;
 
     public string AddressExpression
     {
@@ -283,6 +317,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(SelectedInstructionBytes));
             OnPropertyChanged(nameof(SelectedInstructionText));
             OnPropertyChanged(nameof(SelectedInstructionComment));
+            OnPropertyChanged(nameof(SelectedInstructionExpression));
+            OnPropertyChanged(nameof(CanAddSelectedAddressToHost));
             PatchBytes = value?.Bytes ?? string.Empty;
             AssemblySource = value?.Instruction ?? string.Empty;
             HardwareBreakpointAddress = value?.RuntimeAddress.ToString("X") ?? string.Empty;
@@ -295,6 +331,17 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public string SelectedInstructionBytes => SelectedInstruction?.Bytes ?? "—";
     public string SelectedInstructionText => SelectedInstruction?.Instruction ?? "Select an instruction";
     public string SelectedInstructionComment => SelectedInstruction?.Comment ?? "—";
+    public string SelectedInstructionExpression
+    {
+        get
+        {
+            if (SelectedInstruction == null) return string.Empty;
+            ModuleDescriptor? module = _moduleService?.FindByAddress(SelectedInstruction.RuntimeAddress);
+            return module == null
+                ? SelectedInstruction.RuntimeAddress.ToString("X")
+                : $"{module.Name}+{SelectedInstruction.RuntimeAddress - module.BaseAddress:X}";
+        }
+    }
 
     public async Task InitializeAsync(ulong requestedAddress)
     {
@@ -393,6 +440,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             Status = ex.Message;
             Instructions.Clear();
             HexRows.Clear();
+            ReplaceHexSource(null);
         }
         finally
         {
@@ -415,6 +463,18 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
 
         Instructions.ReplaceAll(snapshot.Instructions);
         ApplyBreakpointMarkers();
+        HexFocusAddress = snapshot.Address;
+        HexAddressExpression = snapshot.Address.ToString("X");
+        if (_hexMemorySourceFactory != null)
+        {
+            ReplaceHexSource(_hexMemorySourceFactory.Create(snapshot.Address, _navigationCancellation?.Token ?? default));
+            if (!_hexHistory.Current?.Address.Equals(snapshot.Address) ?? true)
+                _hexHistory.Push(new NavigationEntry(snapshot.Address, HexAddressExpression, snapshot.Address));
+            RaiseHexHistoryCanExecuteChanged();
+            Status = _hexMemorySource?.Status ?? snapshot.Status;
+            OnPropertyChanged(nameof(SelectedInstructionAddress));
+            return;
+        }
         Dictionary<ulong, byte[]> previousHex = HexRows
             .Where(row => row.Data != null)
             .ToDictionary(row => row.RuntimeAddress, row => row.Data!);
@@ -434,11 +494,73 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(SelectedInstructionAddress));
     }
 
+    private void ReplaceHexSource(IHexMemorySource? source)
+    {
+        if (ReferenceEquals(_hexMemorySource, source)) return;
+        _hexMemorySource?.Dispose();
+        _hexMemorySource = source;
+        HexItems = (IEnumerable<HexPreviewRow>?)source ?? HexRows;
+    }
+
+    private async Task NavigateHexFromExpressionAsync()
+    {
+        AddressExpressionResult result = await _dataService.ResolveAddressAsync(HexAddressExpression, CancellationToken.None);
+        if (!result.Success)
+        {
+            Status = result.Error ?? "Hex address could not be resolved.";
+            return;
+        }
+        NavigateHex(result.Address, HexAddressExpression, addToHistory: true);
+    }
+
+    private Task GoHexBackAsync()
+    {
+        NavigationEntry? entry = _hexHistory.GoBack();
+        if (entry != null) NavigateHex(entry.Address, entry.Expression, addToHistory: false);
+        return Task.CompletedTask;
+    }
+
+    private Task GoHexForwardAsync()
+    {
+        NavigationEntry? entry = _hexHistory.GoForward();
+        if (entry != null) NavigateHex(entry.Address, entry.Expression, addToHistory: false);
+        return Task.CompletedTask;
+    }
+
+    private Task RefreshHexAsync()
+    {
+        NavigateHex(HexFocusAddress, HexAddressExpression, addToHistory: false);
+        return Task.CompletedTask;
+    }
+
+    private void NavigateHex(ulong address, string expression, bool addToHistory)
+    {
+        if (_hexMemorySourceFactory == null)
+        {
+            _ = NavigateToAddressAsync(address);
+            return;
+        }
+        ReplaceHexSource(_hexMemorySourceFactory.Create(address));
+        HexFocusAddress = address;
+        HexAddressExpression = expression;
+        Status = _hexMemorySource?.Status ?? "Hex view unavailable.";
+        if (addToHistory) _hexHistory.Push(new NavigationEntry(address, expression, address));
+        RaiseHexHistoryCanExecuteChanged();
+        _refreshHexCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RaiseHexHistoryCanExecuteChanged()
+    {
+        _hexBackCommand.RaiseCanExecuteChanged();
+        _hexForwardCommand.RaiseCanExecuteChanged();
+    }
+
     public void Dispose()
     {
         _navigationCancellation?.Cancel();
         _navigationCancellation?.Dispose();
         _navigationCancellation = null;
+        ReplaceHexSource(null);
         if (_debugSession != null)
         {
             _debugSession.StateChanged -= DebugSession_StateChanged;
@@ -658,6 +780,13 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         return _editableMetadata.GetMetadata(MemoryLocation.Create(SelectedInstruction.RuntimeAddress, module));
     }
 
+    public EditableMemoryMetadata GetMetadataAtAddress(ulong address)
+    {
+        if (_editableMetadata == null) return new EditableMemoryMetadata(null, false);
+        ModuleDescriptor? module = _moduleService?.FindByAddress(address);
+        return _editableMetadata.GetMetadata(MemoryLocation.Create(address, module));
+    }
+
     public async Task<bool> UpdateSelectedMetadataAsync(EditableMemoryMetadata metadata)
     {
         if (_editableMetadata == null || SelectedInstruction == null)
@@ -671,11 +800,75 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             Status = "Metadata requires a fingerprinted module-relative address.";
             return false;
         }
-        bool saved = _editableMetadata.SetMetadata(
+        MetadataMutationResult result = _editableMetadata.SetMetadata(
             MemoryLocation.Create(SelectedInstruction.RuntimeAddress, module), metadata);
-        Status = saved ? "Comment and bookmark metadata saved." : "Metadata could not be saved.";
-        if (saved) await RefreshAsync();
-        return saved;
+        Status = result.Message;
+        if (result.Succeeded) await RefreshAsync();
+        return result.Succeeded;
+    }
+
+    public async Task<bool> UpdateMetadataAtAddressAsync(ulong address, EditableMemoryMetadata metadata)
+    {
+        if (_editableMetadata == null)
+        {
+            Status = "Versioned metadata editing is unavailable for this process.";
+            return false;
+        }
+        ModuleDescriptor? module = _moduleService?.FindByAddress(address);
+        MetadataMutationResult result = _editableMetadata.SetMetadata(
+            MemoryLocation.Create(address, module), metadata);
+        Status = result.Message;
+        if (result.Succeeded) await RefreshAsync();
+        return result.Succeeded;
+    }
+
+    public async Task AddSelectedInstructionToWatchAsync()
+    {
+        if (SelectedInstruction == null || _watchService == null)
+        {
+            Status = "Watch creation is unavailable.";
+            return;
+        }
+        WatchExpression = SelectedInstruction.RuntimeAddress.ToString("X");
+        await AddWatchAsync();
+    }
+
+    public HostCommandResult AddSelectedInstructionToHost()
+    {
+        if (SelectedInstruction == null) return HostCommandResult.Failure("Select an instruction first.");
+        if (_hostBridge?.CanAddAddress != true)
+            return HostCommandResult.Failure("The main address-list bridge is unavailable.");
+        ModuleDescriptor? module = _moduleService?.FindByAddress(SelectedInstruction.RuntimeAddress);
+        string expression = module == null
+            ? SelectedInstruction.RuntimeAddress.ToString("X")
+            : $"{module.Name}+{SelectedInstruction.RuntimeAddress - module.BaseAddress:X}";
+        HostCommandResult result = _hostBridge.AddAddress(
+            SelectedInstruction.RuntimeAddress, expression, SelectedInstruction.Instruction);
+        Status = result.Message;
+        return result;
+    }
+
+    public async Task AddAddressToWatchAsync(ulong address)
+    {
+        if (_watchService == null) { Status = "Watch creation is unavailable."; return; }
+        WatchExpression = address.ToString("X");
+        await AddWatchAsync();
+    }
+
+    public HostCommandResult AddAddressToHost(ulong address, string description = "Memory address")
+    {
+        if (_hostBridge?.CanAddAddress != true)
+            return HostCommandResult.Failure("The main address-list bridge is unavailable.");
+        string expression = GetAddressExpression(address);
+        HostCommandResult result = _hostBridge.AddAddress(address, expression, description);
+        Status = result.Message;
+        return result;
+    }
+
+    public string GetAddressExpression(ulong address)
+    {
+        ModuleDescriptor? module = _moduleService?.FindByAddress(address);
+        return module == null ? address.ToString("X") : $"{module.Name}+{address - module.BaseAddress:X}";
     }
 
     public async Task<bool> ApplyHexPatchTextAsync(ulong address, byte[] availableOriginalBytes, string text)
@@ -859,6 +1052,12 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         string expression = address.ToString("X");
         AddressExpression = expression;
         await NavigateAsync(address, expression, addToHistory: true);
+    }
+
+    public Task NavigateHexToAddressAsync(ulong address)
+    {
+        if (address != 0) NavigateHex(address, address.ToString("X"), addToHistory: true);
+        return Task.CompletedTask;
     }
 
     private async Task RefreshProcessPanelsAsync(CancellationToken cancellationToken)

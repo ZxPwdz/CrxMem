@@ -25,10 +25,33 @@ public interface IMemoryMetadataService
 
 public sealed record EditableMemoryMetadata(string? Comment, bool IsBookmarked, string? Label = null);
 
+public enum MetadataMutationError
+{
+    None,
+    UnsupportedAddress,
+    ModuleIdentityUnavailable,
+    StaleLocation,
+    PersistenceFailed
+}
+
+public sealed record MetadataMutationResult(
+    bool Succeeded,
+    MemoryLocation Location,
+    MetadataMutationError Error,
+    string Message)
+{
+    public static MetadataMutationResult Success(MemoryLocation location) =>
+        new(true, location, MetadataMutationError.None, "Comment and bookmark metadata saved.");
+
+    public static MetadataMutationResult Failure(
+        MemoryLocation location, MetadataMutationError error, string message) =>
+        new(false, location, error, message);
+}
+
 public interface IEditableMemoryMetadataService : IMemoryMetadataService
 {
     EditableMemoryMetadata GetMetadata(MemoryLocation location);
-    bool SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata);
+    MetadataMutationResult SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata);
 }
 
 public sealed class ProcessMemoryService : IProcessMemoryService

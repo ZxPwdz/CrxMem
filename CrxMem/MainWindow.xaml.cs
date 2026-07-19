@@ -1265,12 +1265,40 @@ namespace CrxMem
                 return;
             }
 
-            _memoryViewWpfWindow = new MemoryView.Wpf.Views.MemoryViewWindow(_process)
+            _memoryViewWpfWindow = new MemoryView.Wpf.Views.MemoryViewWindow(
+                _process, hostBridge: new MainWindowMemoryViewHostBridge(this))
             {
                 Owner = this
             };
             _memoryViewWpfWindow.Closed += (_, _) => _memoryViewWpfWindow = null;
             _memoryViewWpfWindow.Show();
+        }
+
+        private sealed class MainWindowMemoryViewHostBridge : MemoryView.Wpf.Services.IMemoryViewHostBridge
+        {
+            private readonly MainWindow _owner;
+            public MainWindowMemoryViewHostBridge(MainWindow owner) => _owner = owner;
+            public bool CanAddAddress => _owner._process?.IsOpen == true;
+
+            public MemoryView.Wpf.Services.HostCommandResult AddAddress(
+                ulong address, string expression, string description)
+            {
+                if (!CanAddAddress)
+                    return MemoryView.Wpf.Services.HostCommandResult.Failure("The selected process is unavailable.");
+                try
+                {
+                    IntPtr pointer = new(unchecked((long)address));
+                    _owner.AddAddressToList(pointer, description, _owner.ReadValueAsString(pointer),
+                        "4 Bytes", expression);
+                    return MemoryView.Wpf.Services.HostCommandResult.Success(
+                        $"Added {expression} to the main address list.");
+                }
+                catch (Exception ex)
+                {
+                    return MemoryView.Wpf.Services.HostCommandResult.Failure(
+                        $"Address-list transfer failed: {ex.Message}");
+                }
+            }
         }
 
         private void OpenOrFocusMemoryView(IntPtr startAddress)

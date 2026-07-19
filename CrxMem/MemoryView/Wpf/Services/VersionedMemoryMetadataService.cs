@@ -60,10 +60,10 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
     }
 
     public bool SetComment(MemoryLocation location, string? comment) =>
-        Upsert(location, comment, null, null);
+        Upsert(location, comment, null, null).Succeeded;
 
     public bool SetBookmark(MemoryLocation location, bool isBookmarked, string? label = null) =>
-        Upsert(location, null, isBookmarked, label);
+        Upsert(location, null, isBookmarked, label).Succeeded;
 
     public EditableMemoryMetadata GetMetadata(MemoryLocation location)
     {
@@ -73,7 +73,7 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
             : new EditableMemoryMetadata(entry.Comment, entry.IsBookmarked, entry.Label);
     }
 
-    public bool SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata) =>
+    public MetadataMutationResult SetMetadata(MemoryLocation location, EditableMemoryMetadata metadata) =>
         Upsert(location, metadata.Comment ?? string.Empty, metadata.IsBookmarked, metadata.Label ?? string.Empty);
 
     private PersistedMemoryMetadataEntry? Find(MemoryLocation location)
@@ -85,11 +85,18 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
             return _entries.FirstOrDefault(entry => SameLocation(entry, current, location.RelativeVirtualAddress.Value));
     }
 
-    private bool Upsert(MemoryLocation location, string? comment, bool? bookmark, string? label)
+    private MetadataMutationResult Upsert(MemoryLocation location, string? comment, bool? bookmark, string? label)
     {
-        if (location.ModuleName == null || !location.RelativeVirtualAddress.HasValue) return false;
+        if (location.ModuleName == null || !location.RelativeVirtualAddress.HasValue)
+            return MetadataMutationResult.Failure(location, MetadataMutationError.UnsupportedAddress,
+                "Comments and bookmarks require a module-backed address.");
         ModuleIdentity? identity = _identities.GetCurrent(location.ModuleName);
-        if (identity == null) return false;
+        if (identity == null)
+            return MetadataMutationResult.Failure(location, MetadataMutationError.ModuleIdentityUnavailable,
+                $"The identity of module '{location.ModuleName}' could not be verified.");
+        if (location.RelativeVirtualAddress.Value >= identity.ImageSize)
+            return MetadataMutationResult.Failure(location, MetadataMutationError.StaleLocation,
+                "The selected address is outside the current module image.");
         lock (_sync)
         {
             int index = _entries.FindIndex(entry => SameLocation(entry, identity, location.RelativeVirtualAddress.Value));
@@ -109,7 +116,10 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
             }
             else if (index >= 0) _entries[index] = updated;
             else _entries.Add(updated);
-            return TrySave();
+            return TrySave(out string? error)
+                ? MetadataMutationResult.Success(location)
+                : MetadataMutationResult.Failure(location, MetadataMutationError.PersistenceFailed,
+                    error ?? "Metadata could not be written to disk.");
         }
     }
 
@@ -135,7 +145,7 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
                 if (identity == null) continue;
                 changed |= MergeLegacy(identity, rva, bookmark.Comment, true, bookmark.Label, bookmark.Created);
             }
-            if (changed) TrySave();
+            if (changed) TrySave(out _);
         }
     }
 
@@ -205,16 +215,18 @@ public sealed class VersionedMemoryMetadataService : IEditableMemoryMetadataServ
         File.Move(temporary, _path, true);
     }
 
-    private bool TrySave()
+    private bool TrySave(out string? error)
     {
         try
         {
             Save();
+            error = null;
             return true;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[MemoryMetadata] Persistence failed: {ex.Message}");
+            error = ex.Message;
             return false;
         }
     }

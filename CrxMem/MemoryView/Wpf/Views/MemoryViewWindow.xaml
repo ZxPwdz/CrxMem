@@ -193,10 +193,21 @@
                                 <MenuItem Header="Copy _Instruction" Click="CopyDisassemblyRow_Click" InputGestureText="Ctrl+C"/>
                                 <MenuItem Header="Copy _Address" Click="CopyDisassemblyAddress_Click"/>
                                 <MenuItem Header="Copy _Bytes" Click="CopyDisassemblyBytes_Click"/>
+                                <MenuItem Header="Copy _Module + RVA" Click="CopyModuleRva_Click"/>
                                 <MenuItem Header="Edit _Comment / Bookmark" Click="EditMetadata_Click"/>
                                 <Separator/>
+                                <MenuItem Header="Follow in _Hex Dump" Click="FollowInHex_Click"/>
+                                <MenuItem Header="Add to _Watch" Click="AddToWatch_Click"/>
+                                <MenuItem Header="Add to Main Address _List" Click="AddToAddressList_Click" IsEnabled="{Binding CanAddSelectedAddressToHost}"/>
+                                <Separator/>
                                 <MenuItem Header="Toggle _Breakpoint" Click="ToggleBreakpointContext_Click" InputGestureText="F2"/>
+                                <MenuItem Header="Set Hardware Breakpoint" Click="SetHardwareBreakpointContext_Click"/>
                                 <MenuItem Header="Replace with _NOPs" Click="NopInstructionContext_Click"/>
+                                <MenuItem Header="_Assemble at This Address" Click="AssembleAtAddress_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Inspect Memory _Region" Click="InspectMemoryRegion_Click"/>
+                                <MenuItem Header="Inspect _Module" Click="InspectModule_Click"/>
+                                <MenuItem Header="Find Accesses / Writes" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Access tracing remains owned by the separate DebugMonitor feature."/>
                             </ContextMenu>
                         </memoryControls:VirtualizedDisassemblyControl.ContextMenu>
                     </memoryControls:VirtualizedDisassemblyControl>
@@ -207,20 +218,41 @@
                 <Grid Grid.Row="3">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="400"/><ColumnDefinition Width="5"/><ColumnDefinition x:Name="patchEditorColumn" Width="350" MinWidth="0"/></Grid.ColumnDefinitions>
                     <TabControl x:Name="toolsTabControl" Grid.Column="0">
-                        <TabItem Header="Hex Dump">
-                            <memoryControls:VirtualizedHexDumpControl x:Name="hexDumpView" ItemsSource="{Binding HexRows}">
-                                <memoryControls:VirtualizedHexDumpControl.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Copy Selected _Bytes" Click="CopyHexByte_Click"/>
-                                        <MenuItem Header="Copy _Address" Click="CopyHexAddress_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="_Edit Selected Bytes..." Click="EditHexBytes_Click"/>
-                                        <MenuItem Header="_Paste Bytes" Click="PasteHexBytes_Click" InputGestureText="Ctrl+V"/>
-                                        <Separator/>
-                                        <MenuItem Header="_Go to Selected Address" Click="GoToHexAddress_Click"/>
-                                    </ContextMenu>
-                                </memoryControls:VirtualizedHexDumpControl.ContextMenu>
-                            </memoryControls:VirtualizedHexDumpControl>
+                        <TabItem x:Name="hexDumpTab" Header="Hex Dump">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="34"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" Margin="5,3">
+                                    <Button Content="←" Width="30" Command="{Binding HexBackCommand}" ToolTip="Back"/>
+                                    <Button Content="→" Width="30" Margin="3,0,0,0" Command="{Binding HexForwardCommand}" ToolTip="Forward"/>
+                                    <Button Content="↻" Width="30" Margin="3,0,5,0" Command="{Binding RefreshHexCommand}" ToolTip="Refresh hex pages"/>
+                                    <Button Content="Go" Width="42" DockPanel.Dock="Right" Margin="5,0,0,0" Command="{Binding NavigateHexCommand}" IsDefault="False"/>
+                                    <TextBox Text="{Binding HexAddressExpression, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" VerticalContentAlignment="Center">
+                                        <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding NavigateHexCommand}"/></TextBox.InputBindings>
+                                    </TextBox>
+                                </DockPanel>
+                            <ScrollViewer Grid.Row="1" CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                <memoryControls:VirtualizedHexDumpControl x:Name="hexDumpView" ItemsSource="{Binding HexItems}" FocusAddress="{Binding HexFocusAddress}">
+                                    <memoryControls:VirtualizedHexDumpControl.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Copy Selected _Bytes" Click="CopyHexByte_Click"/>
+                                            <MenuItem Header="Copy _Address" Click="CopyHexAddress_Click"/>
+                                            <MenuItem Header="Copy _Module + RVA" Click="CopyHexModuleRva_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="Edit _Comment / Bookmark" Click="EditHexMetadata_Click"/>
+                                            <MenuItem Header="Add to _Watch" Click="AddHexToWatch_Click"/>
+                                            <MenuItem Header="Add to Main Address _List" Click="AddHexToAddressList_Click" IsEnabled="{Binding CanAddSelectedAddressToHost}"/>
+                                            <Separator/>
+                                            <MenuItem Header="_Edit Selected Bytes..." Click="EditHexBytes_Click"/>
+                                            <MenuItem Header="_Paste Bytes" Click="PasteHexBytes_Click" InputGestureText="Ctrl+V"/>
+                                            <Separator/>
+                                            <MenuItem Header="_Go to Selected Address" Click="GoToHexAddress_Click"/>
+                                            <MenuItem Header="Inspect Memory _Region" Click="InspectMemoryRegion_Click"/>
+                                            <MenuItem Header="Inspect _Module" Click="InspectModule_Click"/>
+                                        </ContextMenu>
+                                    </memoryControls:VirtualizedHexDumpControl.ContextMenu>
+                                </memoryControls:VirtualizedHexDumpControl>
+                            </ScrollViewer>
+                            </Grid>
                         </TabItem>
                         <TabItem Header="Stack">
                             <DataGrid x:Name="stackGrid" ItemsSource="{Binding StackRows}" AutoGenerateColumns="False" IsReadOnly="True" ContextMenu="{StaticResource PanelGridContextMenu}" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
@@ -231,7 +263,7 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </TabItem>
-                        <TabItem Header="Watch">
+                        <TabItem x:Name="watchTab" Header="Watch">
                             <Grid>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                 <DockPanel Margin="8,6">
@@ -300,7 +332,7 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </TabItem>
-                        <TabItem Header="Memory Map">
+                        <TabItem x:Name="memoryMapTab" Header="Memory Map">
                             <DataGrid x:Name="memoryMapGrid" ItemsSource="{Binding MemoryMap}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick" ContextMenu="{StaticResource PanelGridContextMenu}" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Base" Binding="{Binding BaseAddress}" Width="155"/>
@@ -323,7 +355,7 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </TabItem>
-                        <TabItem Header="Modules">
+                        <TabItem x:Name="modulesTab" Header="Modules">
                             <DataGrid x:Name="modulesGrid" ItemsSource="{Binding Modules}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick" ContextMenu="{StaticResource PanelGridContextMenu}" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
@@ -358,7 +390,7 @@
                                 <TextBlock Text="Replacement bytes" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
                                 <TextBox x:Name="patchBytesBox" Text="{Binding PatchBytes, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Margin="0,3,0,8" ToolTip="Enter hexadecimal bytes directly, for example: 90 90 90"/>
                                 <TextBlock Text="Assembly source (optional)" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
-                                <TextBox Text="{Binding AssemblySource, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Height="45" TextWrapping="Wrap" Margin="0,3,0,8"/>
+                                <TextBox x:Name="assemblySourceBox" Text="{Binding AssemblySource, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MemoryView.MonoFont}" Height="45" TextWrapping="Wrap" Margin="0,3,0,8"/>
                                 <CheckBox Content="Explicitly NOP-pad shorter replacements" IsChecked="{Binding PadPatchWithNops}" Margin="0,2,0,8"/>
                                 <TextBlock Text="Single-instruction assembly is bounded and verified. Writes still validate original bytes, restore protection, flush the instruction cache, read back, and roll back on failure."
                                            Foreground="{StaticResource MemoryView.TextSecondaryBrush}" TextWrapping="Wrap"/>

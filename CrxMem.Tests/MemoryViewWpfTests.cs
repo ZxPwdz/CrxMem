@@ -172,7 +172,7 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal(DataGridSelectionMode.Extended, patchGrid.SelectionMode);
                 var disassembly = Assert.IsType<VirtualizedDisassemblyControl>(window.FindName("disassemblyView"));
                 Assert.NotNull(disassembly.ContextMenu);
-                Assert.Equal(7, disassembly.ContextMenu!.Items.Count);
+                Assert.Equal(18, disassembly.ContextMenu!.Items.Count);
                 var assembleButton = Assert.IsType<Button>(window.FindName("assembleButton"));
                 Assert.Equal("Assemble", assembleButton.Content);
                 var patchBytesBox = Assert.IsType<TextBox>(window.FindName("patchBytesBox"));

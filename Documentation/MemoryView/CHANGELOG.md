@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 15 interaction and data parity
+
+- Replaced silent metadata Boolean writes with structured mutation diagnostics.
+- Added complete-region, page-backed virtual hex browsing with independent address history and bounded caching.
+- Expanded disassembly and hex context commands and added a decoupled main-address-list bridge.
+- Added page loading, coalescing, invalidation, WPF menu, and persistence regression coverage.
+
 ## 2026-07-19 — Auto Assembler cheat-table handoff requirement
 
 - Added the future editor command for sending an AA script to the main cheat table/address list.

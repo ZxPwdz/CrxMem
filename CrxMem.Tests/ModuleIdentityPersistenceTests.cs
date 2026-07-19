@@ -107,7 +107,7 @@ public sealed class ModuleIdentityPersistenceTests
 
             Assert.True(writer.SetComment(location, "player health"));
             Assert.True(writer.SetBookmark(location, true, "health write"));
-            Assert.True(writer.SetMetadata(location, new EditableMemoryMetadata("armor", true, "armor write")));
+            Assert.True(writer.SetMetadata(location, new EditableMemoryMetadata("armor", true, "armor write")).Succeeded);
 
             var reader = new VersionedMemoryMetadataService(modules, identities, path, migrateLegacy: false);
             Assert.Equal("armor", reader.GetComment(location));
