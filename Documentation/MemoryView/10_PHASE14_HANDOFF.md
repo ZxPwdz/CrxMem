@@ -28,4 +28,4 @@ Phase 14 closes the WPF metadata and direct-hex-edit parity gaps while preservin
 
 ## Next milestone
 
-Phase 15 should replace the labelled heuristic call-stack scan with a native x86/x64 unwinding service, then optionally layer symbol and source resolution over immutable frame models. Register mutation and broader assembly grammar remain independently gated work.
+Phase 15 is now the interaction and data-parity repair milestone documented in `11_REMAINING_ROADMAP.md`: fix real-process metadata editing, replace the fixed hex snapshot with page-backed region browsing and address navigation, and complete the address context-command audit. Native call-stack unwinding moves to Phase 16.

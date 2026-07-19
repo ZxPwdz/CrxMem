@@ -15,7 +15,7 @@ This route was promoted at the project owner's direction so the redesign is the 
 | Disassembly | Pass | Bounded Iced service, immutable rows/tokens, visible-row rendering, markers, branch targets and flows |
 | Debug session | Pass | Native attach/detach, pause/resume, process exit, selected thread, x86/x64 context capture |
 | Registers and flags | Pass (read-only) | Paused-snapshot invariant and changed-value highlighting; editing remains gated |
-| Hex/stack/watch | Pass | Virtualized range selection/copy/edit/paste/deltas, verified patch routing, paused-thread stack, expression watches and explicit errors |
+| Hex/stack/watch | Partial | Hex range editing is safely routed, but full-region paging and independent address navigation remain Phase 15 blockers |
 | Safe byte patches | Pass | Original-byte validation, protection restoration, cache flush, read-back, rollback, undo/redo |
 | Breakpoints and stepping | Pass | Software and hardware breakpoints, reinsertion, hit counts, thread propagation, step/run commands |
 | Remaining panels | Pass with labelled limitations | Breakpoints, memory map, modules, threads, patches and heuristic call-stack projection |
@@ -24,10 +24,13 @@ This route was promoted at the project owner's direction so the redesign is the 
 
 ## Outstanding parity gates
 
-1. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
-2. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
-3. Add register write-back only after paused-thread integration tests prove restoration and error handling.
-4. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
+1. Repair and integration-test real-process comment/bookmark workflows.
+2. Add page-backed full-region hex browsing and independent hex address navigation.
+3. Complete the address context-menu parity audit and implement every verified state-aware action.
+4. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
+5. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
+6. Add register write-back only after paused-thread integration tests prove restoration and error handling.
+7. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
 
 ## Performance and test record
 

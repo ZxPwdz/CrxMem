@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Remaining roadmap correction
+
+- Recorded real-process failures in comment/bookmark editing as unverified release blockers.
+- Promoted page-backed full-region hex browsing, independent hex address navigation, and address context-menu parity into Phase 15.
+- Moved native unwinding, register editing, assembler expansion, and final acceptance to Phases 16–19.
+- Recorded that main scanning and primary-window work begins only after MemoryView final acceptance.
+
 ## 2026-07-18 — Centered disassembly and visible raw patch bytes
 
 - Replaced the forward-only 4 KB/300-row navigation snapshot with a region-bounded 64 KB window and a 12,000-instruction safety cap.

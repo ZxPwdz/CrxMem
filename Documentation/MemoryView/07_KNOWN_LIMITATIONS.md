@@ -36,15 +36,15 @@ The WPF inspection/debugging viewer is the main `Memory View` route and is also 
 - Attach, Detach, Pause, Resume, stepping, breakpoint manager, paused-thread registers, read-only stack, hex, watches, memory map, patch history, modules, threads, verified raw-byte patches, and bounded single-instruction assembly are connected.
 - Assembly currently supports common no-operand, control-flow, 32/64-bit register, and immediate forms. Memory operands, SIMD/vector operands, labels, directives, and multi-line scripts fail explicitly.
 - Stack module labels are explicitly heuristic and are not call-stack unwinding.
-- Hex supports selection/copy/change display only. Raw-byte patching and NOP replacement are available in the patch pane through the safe transaction service; direct nibble editing and paste remain gated.
+- Hex range copy/edit/paste routes through safe patch transactions, but the view still exposes only a fixed 24-row snapshot. It cannot yet page through the full readable region or navigate independently to an entered hex address.
 - Register editing is intentionally unavailable until verified write-back is implemented.
 - Hardware breakpoint execution/write/access behavior is implemented and exposed through a paused-session WPF editor with slot, alignment, access, and size validation.
 - Step Out and Run Until Return use the pointer at the selected thread's current stack pointer and do not claim unwind-metadata accuracy.
 - The native debug integration test is opt-in and currently validated with a 64-bit debugger process on Windows.
 - Fingerprint-backed module-relative patches persist and are revalidated against SHA-256, image size, RVA bounds, and current bytes. Absolute-address patches or modules that cannot be fingerprinted remain session-only and are never auto-applied.
 - Window placement, splitters, pane visibility, selected tabs, code font/row density, and recent addresses persist. Bottom tool grids autosize from current content on each session; the custom disassembly renderer's internal column geometry remains fixed.
-- Context menus cover verified copy, navigation, breakpoint, and NOP workflows. Metadata editing, direct hex editing, and unverified debugger actions remain absent rather than appearing as inactive context commands.
-- Comments and bookmarks use versioned module-fingerprint plus RVA storage, with migration for legacy records resolvable in the current process. The WPF route still lacks complete create/edit/delete workflows; unresolvable absolute legacy entries remain only in the compatibility store.
+- Context menus cover a small verified subset, but address-level parity is incomplete. Follow/navigation, address-list, watch, metadata, tracing, breakpoint, patch/assemble, and region/module actions require a formal parity audit and state-aware implementation.
+- Comments and bookmarks have a versioned module-fingerprint plus RVA service and visible editor, but real-process create/edit/toggle persistence has been reported nonfunctional and is not considered verified until Phase 15 integration tests pass.
 - The WPF route still has explicitly documented parity gaps; see `08_FINAL_HANDOFF.md` for the owner-directed route decision.
 
 ## Explicit nonclaims
