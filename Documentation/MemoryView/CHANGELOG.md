@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 19 restricted Lua AA compatibility
+
+- Added isolated AA Lua preprocessing without CLR loading or dangerous Lua libraries.
+- Added instruction/time/output/cancellation bounds, syntax-check mode, source mapping, and explicit capability trust.
+- Routed Lua `autoAssemble` and `autoAssembleCheck` through the transactional AA service.
+- Added approved-root includes, cycle/traversal limits, global/shared allocation parsing, and named unsupported-capability diagnostics.
+- Added restricted-host, infinite-loop, generated-source, and include-policy tests.
+
 ## 2026-07-19 — Phase 18 transactional Auto Assembler core
 
 - Added the Auto Assembler editor, syntax diagnostics, immutable preview plans, and templates.

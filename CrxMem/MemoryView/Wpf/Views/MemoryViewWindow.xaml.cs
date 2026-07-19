@@ -651,10 +651,13 @@ public partial class MemoryViewWindow : Window
         var patches = new PatchService(patchAdapter, new JsonPatchHistoryStore(), moduleIdentity);
         var addressExpressions = new AddressExpressionService(memory, modules);
         var aaSessions = new InMemoryAutoAssemblerSessionStore();
+        var aaLua = new RestrictedAutoAssemblerLuaHost();
         var aaCompiler = new AutoAssemblerCompiler(addressExpressions, new IcedAssemblerService(),
-            new ProcessNearAllocationPlanner(process), aobScanner: new ProcessAobScanService(process, memory, modules), memory: memory);
+            new ProcessNearAllocationPlanner(process), aobScanner: new ProcessAobScanService(process, memory, modules), memory: memory,
+            luaHost: aaLua);
         var aaExecutor = new AutoAssemblerTransactionExecutor(process, patches, aaSessions);
-        var autoAssembler = new AutoAssemblerService(process, aaCompiler, aaExecutor, aaSessions);
+        var autoAssembler = new AutoAssemblerService(process, aaCompiler, aaExecutor, aaSessions, aaLua);
+        aaLua.AttachService(autoAssembler);
         var debugSession = new NativeDebugSessionService(process);
         var dbgHelp = new WindowsDbgHelpService(process, modules);
         var breakpoints = new BreakpointService(

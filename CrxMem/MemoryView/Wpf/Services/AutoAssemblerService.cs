@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using CrxMem.Core;
@@ -23,7 +24,8 @@ public sealed record AutoAssemblerPlan(
 {
     public bool CanApply => Diagnostics.All(item => item.Severity != AutoAssemblerSeverity.Error);
 }
-public sealed record AutoAssemblerCompileRequest(string Source, bool Enable, int Bitness, int ProcessId, DateTime ProcessStartTimeUtc);
+public sealed record AutoAssemblerCompileRequest(string Source, bool Enable, int Bitness, int ProcessId, DateTime ProcessStartTimeUtc,
+    bool SyntaxCheck = true);
 public sealed record AutoAssemblerCompileResult(AutoAssemblerPlan? Plan, IReadOnlyList<AutoAssemblerDiagnostic> Diagnostics)
 {
     public bool Succeeded => Plan?.CanApply == true;
@@ -47,6 +49,10 @@ public interface IAutoAssemblerTransactionExecutor
 public interface IAutoAssemblerSessionStore { AutoAssemblerSession? Get(string scriptHash); void Set(AutoAssemblerSession session); void Remove(string scriptHash); }
 public interface IAutoAssemblerService
 {
+    AutoAssemblerCapability TrustedLuaCapabilities { get; }
+    string LuaCapabilitySummary { get; }
+    void SetTrustedLuaCapabilities(AutoAssemblerCapability capabilities);
+    void RegisterLuaCommand(string name, Func<IReadOnlyList<string>, CancellationToken, Task<string>> command);
     Task<AutoAssemblerCompileResult> CheckAsync(string source, bool enable, CancellationToken cancellationToken);
     Task<AutoAssemblerExecutionResult> EnableAsync(string source, CancellationToken cancellationToken);
     Task<AutoAssemblerExecutionResult> DisableAsync(string source, CancellationToken cancellationToken);
@@ -87,11 +93,20 @@ public sealed class AutoAssemblerParser : IAutoAssemblerParser
 
 public sealed class AutoAssemblerPreprocessor : IAutoAssemblerPreprocessor
 {
+    private const int MaximumIncludeDepth = 8;
+    private const int MaximumIncludedCharacters = 1024 * 1024;
+    private readonly string[] _approvedRoots;
+    public AutoAssemblerPreprocessor(IEnumerable<string>? approvedRoots = null)
+    {
+        _approvedRoots = (approvedRoots ?? DefaultRoots()).Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
     public AutoAssemblerDocument Process(AutoAssemblerDocument document, IList<AutoAssemblerDiagnostic> diagnostics)
     {
         var defines = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var output = new List<AutoAssemblerLine>();
-        foreach (AutoAssemblerLine line in document.Lines)
+        foreach (AutoAssemblerLine line in ExpandIncludes(document.Lines, diagnostics, new HashSet<string>(StringComparer.OrdinalIgnoreCase), 0))
         {
             if (TryCall(line.Text, "define", out string[] args) && args.Length == 2)
             {
@@ -104,6 +119,49 @@ public sealed class AutoAssemblerPreprocessor : IAutoAssemblerPreprocessor
             output.Add(line with { Text = text });
         }
         return new AutoAssemblerDocument(output, document.ForcedBitness);
+    }
+
+    private IReadOnlyList<AutoAssemblerLine> ExpandIncludes(IEnumerable<AutoAssemblerLine> lines,
+        IList<AutoAssemblerDiagnostic> diagnostics, HashSet<string> stack, int depth)
+    {
+        var output = new List<AutoAssemblerLine>();
+        foreach (AutoAssemblerLine line in lines)
+        {
+            if (!TryCall(line.Text, "include", out string[] args)) { output.Add(line); continue; }
+            if (args.Length != 1 || depth >= MaximumIncludeDepth)
+            { diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1910", "Include depth or syntax is invalid.", line.Span)); continue; }
+            string requested = args[0].Trim().Trim('"', '\'');
+            string? path = ResolveApprovedPath(requested);
+            if (path == null || !File.Exists(path))
+            { diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1911", $"Include '{requested}' is outside approved roots or does not exist.", line.Span)); continue; }
+            if (!stack.Add(path))
+            { diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1912", $"Include cycle detected at '{requested}'.", line.Span)); continue; }
+            string text = File.ReadAllText(path);
+            if (text.Length > MaximumIncludedCharacters)
+            { diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1913", $"Include '{requested}' exceeds 1 MB.", line.Span)); stack.Remove(path); continue; }
+            var nested = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')
+                .Select((value, index) => new AutoAssemblerLine(line.Section, value.Trim(), new(index + 1, 1, Math.Max(1, value.Length))));
+            output.AddRange(ExpandIncludes(nested, diagnostics, stack, depth + 1));
+            stack.Remove(path);
+        }
+        return output;
+    }
+
+    private string? ResolveApprovedPath(string requested)
+    {
+        foreach (string root in _approvedRoots)
+        {
+            string candidate = Path.GetFullPath(Path.IsPathRooted(requested) ? requested : Path.Combine(root, requested));
+            string prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return candidate;
+        }
+        return null;
+    }
+
+    private static IEnumerable<string> DefaultRoots()
+    {
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CrxMem", "AutoAssembler", "Includes");
+        yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CrxMem", "AutoAssembler", "Includes");
     }
 
     internal static bool TryCall(string text, string name, out string[] args)
@@ -146,15 +204,18 @@ public sealed class AutoAssemblerCompiler : IAutoAssemblerCompiler, IAutoAssembl
     private readonly INearAllocationPlanner _allocations;
     private readonly IAobScanService? _aobScanner;
     private readonly IProcessMemoryService? _memory;
+    private readonly IAutoAssemblerLuaHost? _luaHost;
 
     public AutoAssemblerCompiler(IAddressExpressionService addresses, IAssemblerService assembler, INearAllocationPlanner allocations,
         IAutoAssemblerParser? parser = null, IAutoAssemblerPreprocessor? preprocessor = null,
-        IAobScanService? aobScanner = null, IProcessMemoryService? memory = null)
+        IAobScanService? aobScanner = null, IProcessMemoryService? memory = null,
+        IAutoAssemblerLuaHost? luaHost = null)
     {
         _addresses = addresses; _assembler = assembler; _allocations = allocations;
         _parser = parser ?? new AutoAssemblerParser(); _preprocessor = preprocessor ?? new AutoAssemblerPreprocessor();
         _aobScanner = aobScanner;
         _memory = memory;
+        _luaHost = luaHost;
     }
 
     public Task<AutoAssemblerCompileResult> CompileAsync(AutoAssemblerCompileRequest request, CancellationToken cancellationToken) =>
@@ -163,7 +224,20 @@ public sealed class AutoAssemblerCompiler : IAutoAssemblerCompiler, IAutoAssembl
     public async Task<AutoAssemblerCompileResult> BindAsync(AutoAssemblerCompileRequest request, CancellationToken cancellationToken)
     {
         var diagnostics = new List<AutoAssemblerDiagnostic>();
-        AutoAssemblerDocument document = _preprocessor.Process(_parser.Parse(request.Source, diagnostics), diagnostics);
+        string expandedSource = request.Source;
+        IReadOnlyDictionary<int, int>? luaSourceMap = null;
+        if (_luaHost != null)
+        {
+            AutoAssemblerLuaResult lua = await _luaHost.PreprocessAsync(request.Source, request.SyntaxCheck, cancellationToken);
+            if (!lua.Succeeded)
+            {
+                var error = new AutoAssemblerDiagnostic(AutoAssemblerSeverity.Error, "AA1901", lua.Error ?? "AA Lua preprocessing failed.", new(1, 1, 1));
+                return new AutoAssemblerCompileResult(null, [error]);
+            }
+            expandedSource = lua.GeneratedSource;
+            luaSourceMap = lua.GeneratedToOriginalLine;
+        }
+        AutoAssemblerDocument document = _preprocessor.Process(_parser.Parse(expandedSource, diagnostics), diagnostics);
         int bitness = document.ForcedBitness ?? request.Bitness;
         if (bitness is not (32 or 64)) diagnostics.Add(Error("AA2001", "Bitness must be 32 or 64.", 1));
         AutoAssemblerSection wanted = request.Enable ? AutoAssemblerSection.Enable : AutoAssemblerSection.Disable;
@@ -220,6 +294,24 @@ public sealed class AutoAssemblerCompiler : IAutoAssemblerCompiler, IAutoAssembl
                 continue;
             }
             if (text.StartsWith("label(", StringComparison.OrdinalIgnoreCase)) continue;
+            if (text.StartsWith("fullaccess(", StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(new(AutoAssemblerSeverity.Info, "AA1902", "fullaccess is scoped automatically to verified write transactions; page protection is never left changed.", line.Span));
+                continue;
+            }
+            if (text.StartsWith("createthread", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("loadlibrary", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("luacall", StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1903", $"'{text.Split('(')[0]}' requires an explicitly trusted executable capability and an enabled native integration gate.", line.Span));
+                continue;
+            }
+            if (text.StartsWith("{$LUACODE}", StringComparison.OrdinalIgnoreCase) || text.StartsWith("{$C}", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("{$CCODE}", StringComparison.OrdinalIgnoreCase) || text.StartsWith("kalloc", StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(new(AutoAssemblerSeverity.Error, "AA1904", "Embedded code and driver/kernel allocation directives are unsupported capabilities.", line.Span));
+                continue;
+            }
             if (text.StartsWith("aobscan", StringComparison.OrdinalIgnoreCase))
             {
                 if (!TryAobArguments(text, out string symbol, out string pattern, out string? module, out string? startText, out string? endText))
@@ -275,6 +367,15 @@ public sealed class AutoAssemblerCompiler : IAutoAssemblerCompiler, IAutoAssembl
             cursor = checked(cursor.Value + (ulong)emitted.Length);
         }
 
+        if (luaSourceMap != null)
+        {
+            for (int index = 0; index < diagnostics.Count; index++)
+            {
+                AutoAssemblerDiagnostic diagnostic = diagnostics[index];
+                if (luaSourceMap.TryGetValue(diagnostic.Span.Line, out int originalLine))
+                    diagnostics[index] = diagnostic with { Span = diagnostic.Span with { Line = originalLine } };
+            }
+        }
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.Source ?? string.Empty)));
         var plan = new AutoAssemblerPlan(Guid.NewGuid(), hash, request.ProcessId, request.ProcessStartTimeUtc, bitness, request.Enable,
             proposed, assertions, Coalesce(writes), symbols, unregister, dealloc, diagnostics.ToArray());
@@ -295,7 +396,9 @@ public sealed class AutoAssemblerCompiler : IAutoAssemblerCompiler, IAutoAssembl
     {
         name = string.Empty; size = 0; near = null; protection = 0x40;
         string directive = line.Text.StartsWith("allocnx", StringComparison.OrdinalIgnoreCase) ? "allocnx" :
-            line.Text.StartsWith("allocxo", StringComparison.OrdinalIgnoreCase) ? "allocxo" : "alloc";
+            line.Text.StartsWith("allocxo", StringComparison.OrdinalIgnoreCase) ? "allocxo" :
+            line.Text.StartsWith("globalalloc", StringComparison.OrdinalIgnoreCase) ? "globalalloc" :
+            line.Text.StartsWith("sharedalloc", StringComparison.OrdinalIgnoreCase) ? "sharedalloc" : "alloc";
         if (!AutoAssemblerPreprocessor.TryCall(line.Text, directive, out string[] args) || args.Length < 2) return false;
         name = args[0];
         if (!TryHexOrDecimal(args[1], out ulong parsed) || parsed is 0 or > uint.MaxValue) return false;

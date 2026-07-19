@@ -107,6 +107,59 @@ public sealed class AutoAssemblerTests
         }
     }
 
+    [Fact]
+    public async Task RestrictedLua_GeneratesAssemblerWithDangerousLibrariesRemoved()
+    {
+        var host = new RestrictedAutoAssemblerLuaHost();
+        const string source = "[ENABLE]\n{$LUA}\nif os ~= nil or io ~= nil or package ~= nil then error('unsafe') end\nreturn [[1000:\ndb 90]]\n{$ASM}\n[DISABLE]";
+
+        AutoAssemblerLuaResult result = await host.PreprocessAsync(source, true, CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Contains("1000:", result.GeneratedSource);
+        Assert.Contains("db 90", result.GeneratedSource);
+        Assert.DoesNotContain("{$LUA}", result.GeneratedSource, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RestrictedLua_CompilerUsesGeneratedTextAndPreservesOriginalSourceHash()
+    {
+        const string source = "[ENABLE]\n{$LUA}\nreturn [[1000:\ndb CC]]\n{$ASM}\n[DISABLE]";
+        var host = new RestrictedAutoAssemblerLuaHost();
+        var compiler = new AutoAssemblerCompiler(new FakeAddresses(), new IcedAssemblerService(), new FakePlanner(), luaHost: host);
+
+        AutoAssemblerCompileResult result = await compiler.CompileAsync(new(source, true, 64, 7, DateTime.UnixEpoch), CancellationToken.None);
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(item => item.Message)));
+        Assert.Equal(new byte[] { 0xCC }, Assert.Single(result.Plan!.Writes).Bytes);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source))), result.Plan.ScriptHash);
+    }
+
+    [Fact]
+    public async Task RestrictedLua_StopsUnboundedInstructionLoops()
+    {
+        var host = new RestrictedAutoAssemblerLuaHost();
+        AutoAssemblerLuaResult result = await host.PreprocessAsync(
+            "{$LUA}\nwhile true do end\n{$ASM}", true, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("limit", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void IncludePreprocessor_RejectsPathsOutsideApprovedRoots()
+    {
+        string approved = Path.Combine(Path.GetTempPath(), "CrxMem-AA-Includes", Guid.NewGuid().ToString("N"));
+        var diagnostics = new List<AutoAssemblerDiagnostic>();
+        var preprocessor = new AutoAssemblerPreprocessor([approved]);
+        var document = new AutoAssemblerDocument([
+            new(AutoAssemblerSection.Enable, "include(..\\outside.asm)", new(1, 1, 24))], 64);
+
+        preprocessor.Process(document, diagnostics);
+
+        Assert.Contains(diagnostics, item => item.Code == "AA1911");
+    }
+
     private sealed class FakeAddresses : IAddressExpressionService
     {
         public Task<AddressExpressionResult> EvaluateAsync(string expression, CancellationToken cancellationToken)

@@ -163,22 +163,39 @@ public sealed class AutoAssemblerService : IAutoAssemblerService
     private readonly IAutoAssemblerCompiler _compiler;
     private readonly IAutoAssemblerTransactionExecutor _executor;
     private readonly IAutoAssemblerSessionStore _sessions;
+    private readonly IAutoAssemblerLuaHost? _luaHost;
     public AutoAssemblerService(ProcessAccess process, IAutoAssemblerCompiler compiler,
-        IAutoAssemblerTransactionExecutor executor, IAutoAssemblerSessionStore sessions)
-    { _process = process; _compiler = compiler; _executor = executor; _sessions = sessions; }
+        IAutoAssemblerTransactionExecutor executor, IAutoAssemblerSessionStore sessions,
+        IAutoAssemblerLuaHost? luaHost = null)
+    { _process = process; _compiler = compiler; _executor = executor; _sessions = sessions; _luaHost = luaHost; }
+
+    public AutoAssemblerCapability TrustedLuaCapabilities => _luaHost?.TrustedCapabilities ?? AutoAssemblerCapability.None;
+    public string LuaCapabilitySummary =>
+        "AA Lua is isolated: CLR, os, io, package, debug, file loading, and native loading are disabled. " +
+        $"Trusted callbacks: {TrustedLuaCapabilities}. Remote threads and DLL loading remain disabled.";
+    public void SetTrustedLuaCapabilities(AutoAssemblerCapability capabilities) => _luaHost?.SetTrustedCapabilities(capabilities);
+    public void RegisterLuaCommand(string name, Func<IReadOnlyList<string>, CancellationToken, Task<string>> command)
+    {
+        if (_luaHost == null) throw new InvalidOperationException("The restricted AA Lua host is unavailable.");
+        _luaHost.RegisterCommand(name, command);
+    }
 
     public Task<AutoAssemblerCompileResult> CheckAsync(string source, bool enable, CancellationToken cancellationToken)
+        => CompileForCurrentProcessAsync(source, enable, syntaxCheck: true, cancellationToken);
+
+    private Task<AutoAssemblerCompileResult> CompileForCurrentProcessAsync(string source, bool enable, bool syntaxCheck,
+        CancellationToken cancellationToken)
     {
         if (!_process.IsOpen || _process.Target == null || _process.Target.HasExited)
             return Task.FromResult(new AutoAssemblerCompileResult(null,
                 [new(AutoAssemblerSeverity.Error, "AA3001", "Select a live process first.", new(1, 1, 1))]));
         return _compiler.CompileAsync(new(source, enable, _process.Is64Bit ? 64 : 32, _process.Target.Id,
-            _process.Target.StartTime.ToUniversalTime()), cancellationToken);
+            _process.Target.StartTime.ToUniversalTime(), syntaxCheck), cancellationToken);
     }
 
     public async Task<AutoAssemblerExecutionResult> EnableAsync(string source, CancellationToken cancellationToken)
     {
-        AutoAssemblerCompileResult result = await CheckAsync(source, true, cancellationToken);
+        AutoAssemblerCompileResult result = await CompileForCurrentProcessAsync(source, true, syntaxCheck: false, cancellationToken);
         return result.Plan == null || !result.Succeeded
             ? new(false, FormatDiagnostics(result.Diagnostics))
             : await _executor.EnableAsync(result.Plan, cancellationToken);
@@ -186,7 +203,7 @@ public sealed class AutoAssemblerService : IAutoAssemblerService
 
     public async Task<AutoAssemblerExecutionResult> DisableAsync(string source, CancellationToken cancellationToken)
     {
-        AutoAssemblerCompileResult result = await CheckAsync(source, false, cancellationToken);
+        AutoAssemblerCompileResult result = await CompileForCurrentProcessAsync(source, false, syntaxCheck: false, cancellationToken);
         if (result.Plan == null || !result.Succeeded) return new(false, FormatDiagnostics(result.Diagnostics));
         AutoAssemblerSession? session = _sessions.Get(result.Plan.ScriptHash);
         return session == null ? new(false, "This script has no enabled session for the current process.")

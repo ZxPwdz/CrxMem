@@ -5,6 +5,7 @@ using IcedDecoder = Iced.Intel.Decoder;
 using Iced.Intel;
 using NLua;
 using CrxMem.Core;
+using CrxMem.MemoryView.Wpf.Services;
 
 namespace CrxMem.LuaScripting
 {
@@ -15,6 +16,8 @@ namespace CrxMem.LuaScripting
     public class LuaAssemblerFunctions
     {
         private readonly LuaEngine _engine;
+        private IAutoAssemblerService? _autoAssembler;
+        private int _autoAssemblerProcessId;
 
         public LuaAssemblerFunctions(LuaEngine engine)
         {
@@ -27,6 +30,7 @@ namespace CrxMem.LuaScripting
             lua.RegisterFunction("getInstructionSize", this, GetType().GetMethod(nameof(GetInstructionSize)));
             lua.RegisterFunction("assemble", this, GetType().GetMethod(nameof(Assemble)));
             lua.RegisterFunction("autoAssemble", this, GetType().GetMethod(nameof(AutoAssemble)));
+            lua.RegisterFunction("autoAssembleCheck", this, GetType().GetMethod(nameof(AutoAssembleCheck)));
         }
 
         /// <summary>
@@ -173,13 +177,48 @@ namespace CrxMem.LuaScripting
         }
 
         /// <summary>
-        /// Auto Assembler execution is intentionally unavailable in the unrestricted legacy Lua state.
-        /// Phase 19 routes this through the restricted, transactional AA host.
+        /// Route global Lua compatibility calls into the transactional AA service. Any {$LUA}
+        /// blocks inside the AA source still execute in a separate restricted state.
         /// </summary>
-        public bool AutoAssemble(string script)
+        public bool AutoAssemble(string script, bool enable = true)
         {
-            _engine.LuaPrint("autoAssemble is unavailable in the unrestricted Lua engine. Open Memory View > Tools > Auto Assembler; restricted Lua compatibility is provided by Phase 19.");
-            return false;
+            try
+            {
+                IAutoAssemblerService? service = GetAutoAssemblerService();
+                if (service == null) return false;
+                AutoAssemblerExecutionResult result = (enable
+                    ? service.EnableAsync(script, CancellationToken.None)
+                    : service.DisableAsync(script, CancellationToken.None)).GetAwaiter().GetResult();
+                if (!result.Succeeded) _engine.LuaPrint("autoAssemble: " + result.Message);
+                return result.Succeeded;
+            }
+            catch (Exception ex) { _engine.LuaPrint("autoAssemble: " + ex.Message); return false; }
+        }
+
+        public bool AutoAssembleCheck(string script, bool enable = true)
+        {
+            try { return GetAutoAssemblerService()?.CheckAsync(script, enable, CancellationToken.None).GetAwaiter().GetResult().Succeeded == true; }
+            catch (Exception ex) { _engine.LuaPrint("autoAssembleCheck: " + ex.Message); return false; }
+        }
+
+        private IAutoAssemblerService? GetAutoAssemblerService()
+        {
+            ProcessAccess? process = _engine.ProcessAccess;
+            if (process?.Target == null || !process.IsOpen || process.Target.HasExited) return null;
+            if (_autoAssembler != null && _autoAssemblerProcessId == process.Target.Id) return _autoAssembler;
+            var memory = new ProcessMemoryService(process);
+            var modules = new ModuleService(process);
+            var sessions = new InMemoryAutoAssemblerSessionStore();
+            var luaHost = new RestrictedAutoAssemblerLuaHost();
+            var patches = new PatchService(new ProcessPatchMemoryAdapter(process));
+            var compiler = new AutoAssemblerCompiler(new AddressExpressionService(memory, modules),
+                new IcedAssemblerService(), new ProcessNearAllocationPlanner(process),
+                aobScanner: new ProcessAobScanService(process, memory, modules), memory: memory, luaHost: luaHost);
+            _autoAssembler = new AutoAssemblerService(process, compiler,
+                new AutoAssemblerTransactionExecutor(process, patches, sessions), sessions, luaHost);
+            luaHost.AttachService(_autoAssembler);
+            _autoAssemblerProcessId = process.Target.Id;
+            return _autoAssembler;
         }
 
         private byte[] ParseByteDefinition(string line)

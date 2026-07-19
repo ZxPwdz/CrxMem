@@ -32,6 +32,15 @@ public partial class AutoAssemblerWindow : Window
 
     private async void Enable_Click(object sender, RoutedEventArgs e)
     {
+        if (sourceEditor.Text.Contains("{$LUA}", StringComparison.OrdinalIgnoreCase) &&
+            sourceEditor.Text.Contains("autoAssemble(", StringComparison.OrdinalIgnoreCase) &&
+            (_service.TrustedLuaCapabilities & AutoAssemblerCapability.ProcessMutation) == 0)
+        {
+            if (System.Windows.MessageBox.Show(this, _service.LuaCapabilitySummary +
+                    "\n\nThis script requests nested process mutation through autoAssemble(). Trust that callback for this MemoryView session?",
+                    "AA Lua capabilities", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            _service.SetTrustedLuaCapabilities(_service.TrustedLuaCapabilities | AutoAssemblerCapability.ProcessMutation);
+        }
         if (System.Windows.MessageBox.Show(this, "Apply this process-bound plan? Assertions and original bytes will be verified before writes.",
                 "Enable Auto Assembler script", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
         SetBusy(true, "Enabling…");
