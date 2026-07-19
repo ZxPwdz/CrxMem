@@ -584,6 +584,54 @@ public partial class MemoryViewWindow : Window
         await _viewModel.ApplyHexPatchTextAsync(address, available, System.Windows.Clipboard.GetText());
     }
 
+    private async void RegisterRow_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 || sender is not FrameworkElement { DataContext: RegisterValue register }) return;
+        e.Handled = true;
+        await ShowRegisterEditorAsync(register);
+    }
+
+    private async void EditRegister_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: RegisterValue register }) await ShowRegisterEditorAsync(register);
+    }
+
+    private void CopyRegisterValue_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: RegisterValue register })
+            System.Windows.Clipboard.SetText(register.Value.ToString("X"));
+    }
+
+    private async void ToggleFlag_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag } || !uint.TryParse(tag, out uint mask)) return;
+        RegisterWriteResult? result = await _viewModel.ToggleFlagAsync(mask);
+        if (result is { Success: false })
+            System.Windows.MessageBox.Show(this, result.Diagnostic ?? "Flag write failed.",
+                "Edit flags", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private async Task ShowRegisterEditorAsync(RegisterValue register)
+    {
+        if (!_viewModel.CanEditRegister(register))
+        {
+            System.Windows.MessageBox.Show(this,
+                register.Name.StartsWith("DR", StringComparison.OrdinalIgnoreCase)
+                    ? "Debug registers are managed by the breakpoint service and cannot be edited here."
+                    : "Register editing requires the matching selected thread in a verified paused debugger session.",
+                "Edit register", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dialog = new TextEntryDialog($"Edit {register.Name}",
+            "Enter hexadecimal, or prefix decimal input with dec:. The write will be recaptured and verified.",
+            register.Value.ToString("X")) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        RegisterWriteResult? result = await _viewModel.WriteRegisterAsync(register, dialog.Value);
+        if (result is { Success: false })
+            System.Windows.MessageBox.Show(this, result.Diagnostic ?? "Register write failed.",
+                "Edit register", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
     private async void GoToHexAddress_Click(object sender, RoutedEventArgs e)
     {
         if (hexDumpView.SelectedRangeAddress is ulong address) await _viewModel.NavigateToAddressAsync(address);

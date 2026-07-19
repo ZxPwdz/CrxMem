@@ -1098,6 +1098,85 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         return Task.CompletedTask;
     }
 
+    public bool CanEditRegister(RegisterValue? register) =>
+        register != null && _registerService != null && _lastRegisterSnapshot != null &&
+        _debugSession?.Snapshot.CanReadThreadContext == true &&
+        !register.Name.StartsWith("DR", StringComparison.OrdinalIgnoreCase);
+
+    public Task<RegisterWriteResult?> ToggleFlagAsync(uint mask)
+    {
+        if (_lastRegisterSnapshot == null)
+        {
+            Status = "Flag editing requires a verified paused register snapshot.";
+            return Task.FromResult<RegisterWriteResult?>(null);
+        }
+        string name = _lastRegisterSnapshot.Is64Bit ? "RFLAGS" : "EFLAGS";
+        var flags = new RegisterValue(name, _lastRegisterSnapshot.Flags);
+        return WriteRegisterAsync(flags, $"0x{(_lastRegisterSnapshot.Flags ^ mask):X}");
+    }
+
+    public async Task<RegisterWriteResult?> WriteRegisterAsync(RegisterValue register, string text)
+    {
+        if (_registerService == null || _debugSession == null || _lastRegisterSnapshot == null)
+        {
+            Status = "Register editing requires a selected thread in a paused debugger session.";
+            return null;
+        }
+        if (!TryParseRegisterValue(text, out ulong value, out string? parseError))
+        {
+            Status = parseError ?? "Invalid register value.";
+            return null;
+        }
+
+        var request = new RegisterWriteRequest(_debugSession.Snapshot, _lastRegisterSnapshot, register.Name, value);
+        RegisterWriteValidation validation = _registerService.ValidateWrite(request);
+        if (!validation.IsValid)
+        {
+            Status = validation.Diagnostic ?? "Register write rejected.";
+            return RegisterWriteResult.Failed(request, validation.Error, Status);
+        }
+
+        RegisterWriteResult result;
+        try { result = await _registerService.WriteAsync(request, CancellationToken.None); }
+        catch (OperationCanceledException)
+        {
+            result = RegisterWriteResult.Failed(request, RegisterWriteError.Cancelled, "Register write cancelled.");
+        }
+        Status = result.Diagnostic ?? (result.Success ? $"{register.Name} updated." : "Register write failed.");
+        if (!result.Success || result.Snapshot == null) return result;
+        if (!_debugSession.Snapshot.CanReadThreadContext ||
+            _debugSession.Snapshot.SelectedThreadId != result.Snapshot.ThreadId) return result;
+
+        RegisterSnapshot snapshot = result.Snapshot;
+        Registers.Clear();
+        foreach (RegisterValue item in snapshot.Registers) Registers.Add(item);
+        _lastRegisterSnapshot = snapshot;
+        FlagsText = $"0x{snapshot.Flags:X8}";
+        HasRegisterSnapshot = true;
+        await NavigateToAddressAsync(snapshot.InstructionPointer);
+        await RefreshStackAsync(snapshot);
+        await RefreshWatchesAsync();
+        return result;
+    }
+
+    private static bool TryParseRegisterValue(string text, out ulong value, out string? error)
+    {
+        value = 0;
+        error = null;
+        string input = text.Trim().Replace("_", string.Empty, StringComparison.Ordinal);
+        bool isDecimal = input.StartsWith("dec:", StringComparison.OrdinalIgnoreCase);
+        if (isDecimal) input = input[4..].Trim();
+        else if (input.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) input = input[2..];
+        if (input.Length == 0 || !ulong.TryParse(input,
+                isDecimal ? System.Globalization.NumberStyles.Integer : System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out value))
+        {
+            error = "Enter hexadecimal (for example 7FF61234 or 0x7FF61234), or prefix decimal input with dec:.";
+            return false;
+        }
+        return true;
+    }
+
     private async Task RefreshProcessPanelsAsync(CancellationToken cancellationToken)
     {
         if (!_processPanelsLoaded)

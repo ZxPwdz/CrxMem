@@ -48,6 +48,24 @@ public sealed class MemoryViewDebugViewModelTests
         Assert.Equal(0x140001000UL, frame.RuntimeAddress);
     }
 
+    [Fact]
+    public async Task RegisterWrite_ReplacesSnapshotOnlyAfterVerifiedServiceResult()
+    {
+        var debug = new FakeDebugSessionService();
+        using var viewModel = new MemoryViewViewModel(
+            new EmptyMemoryViewDataService(), debugSession: debug, registerService: new FakeRegisterService());
+        debug.Publish(new DebugSessionSnapshot(DebugSessionState.Paused, 42, 7, "Breakpoint"));
+        await WaitUntilAsync(() => viewModel.HasRegisterSnapshot);
+
+        RegisterValue stackPointer = viewModel.Registers.Single(item => item.Name == "RSP");
+        RegisterWriteResult? result = await viewModel.WriteRegisterAsync(stackPointer, "dec:4096");
+
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal(4096UL, viewModel.Registers.Single(item => item.Name == "RSP").Value);
+        Assert.True(viewModel.Registers.Single(item => item.Name == "RSP").HasChanged);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -103,6 +121,27 @@ public sealed class MemoryViewDebugViewModelTests
                 0x246,
                 DateTimeOffset.UtcNow);
             return Task.FromResult(RegisterCaptureResult.Captured(snapshot));
+        }
+
+        public RegisterWriteValidation ValidateWrite(RegisterWriteRequest request) => RegisterWriteValidation.Valid();
+
+        public Task<RegisterWriteResult> WriteAsync(RegisterWriteRequest request, CancellationToken cancellationToken)
+        {
+            RegisterValue[] values = request.Snapshot.Registers.Select(item =>
+                string.Equals(item.Name, request.RegisterName, StringComparison.OrdinalIgnoreCase)
+                    ? new RegisterValue(item.Name, request.RequestedValue, item.Value)
+                    : item).ToArray();
+            ulong ip = request.RegisterName.Equals("RIP", StringComparison.OrdinalIgnoreCase)
+                ? request.RequestedValue : request.Snapshot.InstructionPointer;
+            var snapshot = request.Snapshot with
+            {
+                Registers = values,
+                InstructionPointer = ip,
+                CapturedAt = DateTimeOffset.UtcNow
+            };
+            return Task.FromResult(new RegisterWriteResult(true, RegisterWriteError.None,
+                request.Snapshot.Registers.First(item => item.Name == request.RegisterName).Value,
+                request.RequestedValue, request.RequestedValue, false, false, snapshot, "verified"));
         }
     }
 

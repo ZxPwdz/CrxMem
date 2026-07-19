@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 17 verified register editing
+
+- Added paused-thread register validation, native write, read-back verification, and verified rollback.
+- Added generation checks, x86/x64 width enforcement, protected debug registers, and reserved flag-bit preservation.
+- Added register double-click/context editing and explicit status-flag toggles.
+- Added managed projection coverage and real opt-in native mutation/restore verification.
+
 ## 2026-07-19 — Phase 16 native call stack and symbols
 
 - Added serialized DbgHelp stack walking for x64 and WOW64/x86 paused-thread contexts.

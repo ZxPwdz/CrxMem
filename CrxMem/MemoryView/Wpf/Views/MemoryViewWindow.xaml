@@ -425,7 +425,14 @@
                                 <ItemsControl ItemsSource="{Binding Registers}" Margin="10,5">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Height="20">
+                                            <Grid Height="20" MouseLeftButtonDown="RegisterRow_MouseLeftButtonDown">
+                                                <Grid.ContextMenu>
+                                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                                        <MenuItem Header="Edit register…" Click="EditRegister_Click" ToolTip="Requires the matching selected thread in a verified paused debugger session."/>
+                                                        <Separator/>
+                                                        <MenuItem Header="Copy value" Click="CopyRegisterValue_Click"/>
+                                                    </ContextMenu>
+                                                </Grid.ContextMenu>
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="45"/><ColumnDefinition Width="*"/><ColumnDefinition Width="65"/></Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Name}" Foreground="{StaticResource MemoryView.TextSecondaryBrush}" FontFamily="{StaticResource MemoryView.MonoFont}"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat={}{0:X16}}" FontFamily="{StaticResource MemoryView.MonoFont}">
@@ -451,6 +458,15 @@
                             </StackPanel>
                         </Grid>
                         <Border Grid.Row="2" BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="0,1,0,0" Padding="10,5">
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Toggle CF" Tag="1" Click="ToggleFlag_Click"/><MenuItem Header="Toggle PF" Tag="4" Click="ToggleFlag_Click"/>
+                                    <MenuItem Header="Toggle AF" Tag="16" Click="ToggleFlag_Click"/><MenuItem Header="Toggle ZF" Tag="64" Click="ToggleFlag_Click"/>
+                                    <MenuItem Header="Toggle SF" Tag="128" Click="ToggleFlag_Click"/><MenuItem Header="Toggle TF" Tag="256" Click="ToggleFlag_Click"/>
+                                    <MenuItem Header="Toggle IF" Tag="512" Click="ToggleFlag_Click"/><MenuItem Header="Toggle DF" Tag="1024" Click="ToggleFlag_Click"/>
+                                    <MenuItem Header="Toggle OF" Tag="2048" Click="ToggleFlag_Click"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <StackPanel Orientation="Horizontal"><TextBlock Text="RFLAGS  " Foreground="{StaticResource MemoryView.TextMutedBrush}"/><TextBlock Text="{Binding FlagsText}" FontFamily="{StaticResource MemoryView.MonoFont}"/></StackPanel>
                         </Border>
                     </Grid>

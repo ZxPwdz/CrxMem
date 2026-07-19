@@ -48,6 +48,20 @@ public sealed class NativeDebugSessionServiceTests
             RegisterCaptureResult registers = await registerService.CaptureAsync(
                 service.Snapshot, null, CancellationToken.None);
             Assert.True(registers.IsAvailable, registers.Error);
+            string scratchRegister = registers.Snapshot!.Is64Bit ? "R15" : "EDI";
+            ulong originalScratch = registers.Snapshot.Registers.Single(value => value.Name == scratchRegister).Value;
+            ulong changedScratch = registers.Snapshot.Is64Bit
+                ? originalScratch ^ 0x13579BDF2468ACE0UL
+                : (uint)originalScratch ^ 0x2468ACE0U;
+            RegisterWriteResult changed = await registerService.WriteAsync(new RegisterWriteRequest(
+                service.Snapshot, registers.Snapshot, scratchRegister, changedScratch), CancellationToken.None);
+            Assert.True(changed.Success, changed.Diagnostic);
+            Assert.Equal(changedScratch, changed.VerifiedValue);
+            RegisterWriteResult restored = await registerService.WriteAsync(new RegisterWriteRequest(
+                service.Snapshot, changed.Snapshot!, scratchRegister, originalScratch), CancellationToken.None);
+            Assert.True(restored.Success, restored.Diagnostic);
+            Assert.Equal(originalScratch, restored.VerifiedValue);
+            registers = RegisterCaptureResult.Captured(restored.Snapshot!);
             using (var dbgHelp = new WindowsDbgHelpService(process, new ModuleService(process)))
             {
                 UnwindResult unwind = await dbgHelp.UnwindAsync(
