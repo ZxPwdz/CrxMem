@@ -45,16 +45,22 @@ This phase is release-blocking and precedes additional debugger features.
 - Add paused-thread register and flag editing with architecture-specific validation.
 - Suspend-state invariants, context write-back, read-back verification, rollback/error reporting, and integration tests are mandatory.
 
-## Phase 18 — Assembler and remaining debugger parity
+## Phase 18 — Auto Assembler core and safe enable/disable
 
-- Expand assembly through separately tested memory-operand, SIMD/vector, label, directive, and multi-line families.
-- Complete the remaining debugger/context-command parity items without exposing inactive controls.
+- Implement the stateful two-pass Auto Assembler core, execution-plan preview, verified batch transaction, enable/disable session state, AOB/alloc/symbol directives, and injection templates described in `12_AUTO_ASSEMBLER_RESEARCH.md`.
+- Expand instruction assembly through separately tested memory-operand, SIMD/vector, label, directive, and multi-line families as required by AA scripts.
 
-## Phase 19 — Final MemoryView acceptance
+## Phase 19 — Auto Assembler compatibility and trusted Lua
+
+- Add advanced directives plus trusted `{$LUA}` preprocessing, `luacall`, Lua `autoAssemble`/`autoAssembleCheck`, and extension-command registration using CrxMem's existing NLua runtime.
+- Gate remote threads, DLL loading, host callbacks, includes, and other executable capabilities behind explicit policy and integration tests.
+- Keep `{$LUACODE}`, C blocks, and kernel-only behavior explicitly deferred until their separate runtimes are designed and verified.
+
+## Phase 20 — Final MemoryView acceptance
 
 - Repeat feature parity, performance, DPI, accessibility, persistence, cleanup, and recovery testing.
 - Update the final handoff with verified limitations and decide the long-term legacy-viewer route.
 
 ## Work after MemoryView
 
-After Phase 19, development moves to a separate main-application roadmap covering scanning correctness and performance, scan-result management, address-list workflows, settings, persistence, process selection/attachment, hotkeys, and the remaining primary-window features. MemoryView work is not allowed to obscure or silently expand that later scope.
+After Phase 20, development moves to a separate main-application roadmap covering scanning correctness and performance, scan-result management, address-list workflows, settings, persistence, process selection/attachment, hotkeys, and the remaining primary-window features. MemoryView work is not allowed to obscure or silently expand that later scope.

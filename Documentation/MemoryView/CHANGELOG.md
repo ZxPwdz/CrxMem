@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Auto Assembler architecture research
+
+- Traced Cheat Engine's Delphi AA pipeline, enable/disable state, directives, two-pass label sizing, allocations, writes, templates, and Lua integration.
+- Documented a CrxMem-owned compiler/plan/transaction architecture and a compatibility test strategy.
+- Confirmed that Lua is an optional metaprogramming layer rather than the AA core and that CrxMem can reuse its existing NLua dependency later.
+- Split AA delivery into Phase 18 core safety and Phase 19 trusted-Lua/advanced compatibility; final MemoryView acceptance is now Phase 20.
+- Recorded the existing Lua `autoAssemble` implementation as an unsafe compatibility placeholder that must be replaced.
+
 ## 2026-07-19 — Remaining roadmap correction
 
 - Recorded real-process failures in comment/bookmark editing as unverified release blockers.

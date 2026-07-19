@@ -27,7 +27,7 @@ This route was promoted at the project owner's direction so the redesign is the 
 1. Repair and integration-test real-process comment/bookmark workflows.
 2. Add page-backed full-region hex browsing and independent hex address navigation.
 3. Complete the address context-menu parity audit and implement every verified state-aware action.
-4. Expand bounded assembly only through tested operand families; memory operands and multi-line scripts remain gated.
+4. Replace the placeholder Lua `autoAssemble` binding with the stateful, transactional Auto Assembler design in `12_AUTO_ASSEMBLER_RESEARCH.md`; memory operands and multi-line scripts remain gated until that compiler exists.
 5. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
 6. Add register write-back only after paused-thread integration tests prove restoration and error handling.
 7. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
@@ -60,4 +60,4 @@ dotnet test CrxMem.sln -c Release --no-build
 
 ## Recommended next milestone
 
-Phase 14 completed versioned comment/bookmark editing and direct verified hex editing. The next milestone should build a true native unwinder with optional symbols before repeating the parity review.
+Phase 15 is the current release-blocking milestone: repair real-process comments/bookmarks, add full-region page-backed hex navigation, and complete address context-command parity. Native unwinding and register editing follow in Phases 16 and 17. The Auto Assembler is then delivered as a safe core compiler/executor in Phase 18 and trusted Lua compatibility in Phase 19, before final acceptance in Phase 20.
