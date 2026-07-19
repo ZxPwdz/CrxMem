@@ -16,6 +16,7 @@ public partial class MemoryViewWindow : Window
     private readonly ulong _startAddress;
     private readonly MemoryViewViewModel _viewModel;
     private readonly IMemoryViewLayoutStore _layoutStore;
+    private readonly IAutoAssemblerService? _autoAssemblerService;
     private double _visibleInspectorWidth = 350;
     private double _visiblePatchEditorWidth = 350;
     private double _codeFontSize = 12;
@@ -48,7 +49,8 @@ public partial class MemoryViewWindow : Window
             composition.HexMemorySourceFactory,
             hostBridge,
             composition.CallStackService,
-            composition.SymbolService)
+            composition.SymbolService,
+            composition.AutoAssemblerService)
     {
     }
 
@@ -71,11 +73,13 @@ public partial class MemoryViewWindow : Window
         IHexMemorySourceFactory? hexMemorySourceFactory = null,
         IMemoryViewHostBridge? hostBridge = null,
         ICallStackService? callStackService = null,
-        ISymbolService? symbolService = null)
+        ISymbolService? symbolService = null,
+        IAutoAssemblerService? autoAssemblerService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
         _layoutStore = layoutStore ?? throw new ArgumentNullException(nameof(layoutStore));
+        _autoAssemblerService = autoAssemblerService;
         _viewModel = new MemoryViewViewModel(
             dataService ?? throw new ArgumentNullException(nameof(dataService)),
             debugSession: debugSession,
@@ -645,6 +649,12 @@ public partial class MemoryViewWindow : Window
         var metadata = new VersionedMemoryMetadataService(modules, moduleIdentity);
         var patchAdapter = new ProcessPatchMemoryAdapter(process);
         var patches = new PatchService(patchAdapter, new JsonPatchHistoryStore(), moduleIdentity);
+        var addressExpressions = new AddressExpressionService(memory, modules);
+        var aaSessions = new InMemoryAutoAssemblerSessionStore();
+        var aaCompiler = new AutoAssemblerCompiler(addressExpressions, new IcedAssemblerService(),
+            new ProcessNearAllocationPlanner(process), aobScanner: new ProcessAobScanService(process, memory, modules), memory: memory);
+        var aaExecutor = new AutoAssemblerTransactionExecutor(process, patches, aaSessions);
+        var autoAssembler = new AutoAssemblerService(process, aaCompiler, aaExecutor, aaSessions);
         var debugSession = new NativeDebugSessionService(process);
         var dbgHelp = new WindowsDbgHelpService(process, modules);
         var breakpoints = new BreakpointService(
@@ -660,7 +670,7 @@ public partial class MemoryViewWindow : Window
             debugSession,
             new WindowsRegisterService(process),
             new StackService(memory, modules),
-            new WatchService(new AddressExpressionService(memory, modules), memory),
+            new WatchService(addressExpressions, memory),
             patches,
             breakpoints,
             modules,
@@ -669,7 +679,8 @@ public partial class MemoryViewWindow : Window
             new ProcessMemoryMapService(process),
             new HexMemorySourceFactory(memory),
             dbgHelp,
-            dbgHelp);
+            dbgHelp,
+            autoAssembler);
     }
 
     private sealed record MemoryViewComposition(
@@ -687,7 +698,19 @@ public partial class MemoryViewWindow : Window
         IMemoryMapService MemoryMapService,
         IHexMemorySourceFactory HexMemorySourceFactory,
         ICallStackService CallStackService,
-        ISymbolService SymbolService);
+        ISymbolService SymbolService,
+        IAutoAssemblerService AutoAssemblerService);
+
+    private void AutoAssembler_Click(object sender, RoutedEventArgs e)
+    {
+        if (_autoAssemblerService == null)
+        {
+            System.Windows.MessageBox.Show(this, "Auto Assembler is unavailable for this MemoryView host.",
+                "Auto Assembler", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        new AutoAssemblerWindow(_autoAssemblerService) { Owner = this }.Show();
+    }
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,

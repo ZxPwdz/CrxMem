@@ -1,5 +1,13 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 18 transactional Auto Assembler core
+
+- Added the Auto Assembler editor, syntax diagnostics, immutable preview plans, and templates.
+- Added section/directive parsing, typed data, assertions, bounded AOB scans, exact near-allocation proposals, and shared Iced assembly.
+- Added process-bound transactional enable/disable with verified patching, read-back, cache flush, reverse rollback, and recoverable sessions.
+- Replaced the legacy unrestricted Lua `autoAssemble` memory writer with an explicit unavailable result pending the restricted host.
+- Added compiler coverage and a real benign-target enable/disable mutation test.
+
 ## 2026-07-19 — Phase 17 verified register editing
 
 - Added paused-thread register validation, native write, read-back verification, and verified rollback.

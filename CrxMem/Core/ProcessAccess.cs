@@ -811,6 +811,14 @@ namespace CrxMem.Core
             return VirtualAllocEx(Handle, IntPtr.Zero, size, MEM_COMMIT | MEM_RESERVE, protect);
         }
 
+        /// <summary>Reserve and commit at an exact previewed address. Returns zero if that address is no longer available.</summary>
+        public IntPtr AllocateMemoryAt(IntPtr address, uint size, uint protect = PAGE_EXECUTE_READWRITE)
+        {
+            if (!IsOpen)
+                throw new InvalidOperationException("Process not opened");
+            return VirtualAllocEx(Handle, address, size, MEM_COMMIT | MEM_RESERVE, protect);
+        }
+
         /// <summary>
         /// Free memory in the target process
         /// </summary>

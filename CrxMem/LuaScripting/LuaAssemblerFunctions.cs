@@ -173,83 +173,13 @@ namespace CrxMem.LuaScripting
         }
 
         /// <summary>
-        /// Execute an auto-assembler script.
-        /// This is a simplified version that handles basic patterns.
+        /// Auto Assembler execution is intentionally unavailable in the unrestricted legacy Lua state.
+        /// Phase 19 routes this through the restricted, transactional AA host.
         /// </summary>
         public bool AutoAssemble(string script)
         {
-            var process = _engine.ProcessAccess;
-            if (process == null) return false;
-
-            try
-            {
-                // Parse and execute the auto-assembler script
-                // This is a simplified implementation
-                var lines = script.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                long currentAddress = 0;
-                bool enabled = true;
-
-                foreach (var rawLine in lines)
-                {
-                    string line = rawLine.Trim();
-
-                    // Skip comments
-                    if (line.StartsWith("//") || line.StartsWith(";"))
-                        continue;
-
-                    // Handle [ENABLE] and [DISABLE] sections
-                    if (line.Equals("[ENABLE]", StringComparison.OrdinalIgnoreCase))
-                    {
-                        enabled = true;
-                        continue;
-                    }
-                    if (line.Equals("[DISABLE]", StringComparison.OrdinalIgnoreCase))
-                    {
-                        enabled = false;
-                        continue;
-                    }
-
-                    if (!enabled) continue;
-
-                    // Handle label definitions (address:)
-                    if (line.EndsWith(":"))
-                    {
-                        string label = line.TrimEnd(':');
-                        // Parse address from label
-                        var parsed = ParseAddress(label);
-                        if (parsed != 0) currentAddress = parsed;
-                        continue;
-                    }
-
-                    // Handle byte definitions (db, dw, dd, dq)
-                    if (line.StartsWith("db ") || line.StartsWith("dw ") ||
-                        line.StartsWith("dd ") || line.StartsWith("dq "))
-                    {
-                        // Parse bytes
-                        string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length < 2) continue;
-
-                        var bytes = ParseByteDefinition(line);
-                        if (bytes.Length > 0 && currentAddress != 0)
-                        {
-                            process.WriteWithProtection(new IntPtr(currentAddress), bytes);
-                            currentAddress += bytes.Length;
-                        }
-                        continue;
-                    }
-
-                    // Handle NOP instruction
-                    if (line.ToLower() == "nop" && currentAddress != 0)
-                    {
-                        process.WriteWithProtection(new IntPtr(currentAddress), (byte)0x90);
-                        currentAddress++;
-                        continue;
-                    }
-                }
-
-                return true;
-            }
-            catch { return false; }
+            _engine.LuaPrint("autoAssemble is unavailable in the unrestricted Lua engine. Open Memory View > Tools > Auto Assembler; restricted Lua compatibility is provided by Phase 19.");
+            return false;
         }
 
         private byte[] ParseByteDefinition(string line)

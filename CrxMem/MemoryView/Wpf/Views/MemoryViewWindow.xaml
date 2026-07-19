@@ -105,6 +105,8 @@
                 <MenuItem Header="_Toggle Bookmark" Click="ToggleBookmark_Click" InputGestureText="Ctrl+D"/>
             </MenuItem>
             <MenuItem Header="_Tools">
+                <MenuItem Header="_Auto Assembler…" Click="AutoAssembler_Click"/>
+                <Separator/>
                 <MenuItem x:Name="microsoftSymbolsMenu" Header="Use _Microsoft Symbol Server" IsCheckable="True"
                           IsChecked="{Binding MicrosoftSymbolServerEnabled, Mode=OneWay}" Click="MicrosoftSymbols_Click"
                           ToolTip="Local symbols are always tried first. Enabling this permits symbol downloads from Microsoft."/>
