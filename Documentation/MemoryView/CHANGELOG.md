@@ -1,5 +1,11 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Auto Assembler cheat-table handoff requirement
+
+- Added the future editor command for sending an AA script to the main cheat table/address list.
+- Required first-class script records with enable/disable/edit lifecycle, diagnostics, hotkeys, ordering, persistence, process-restart validation, and failure recovery.
+- Recorded the need to migrate the current address-only version 2.0 table schema to versioned record kinds without losing existing entries.
+
 ## 2026-07-19 — Auto Assembler architecture research
 
 - Traced Cheat Engine's Delphi AA pipeline, enable/disable state, directives, two-pass label sizing, allocations, writes, templates, and Lua integration.

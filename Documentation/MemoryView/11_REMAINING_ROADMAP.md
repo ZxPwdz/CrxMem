@@ -64,3 +64,5 @@ This phase is release-blocking and precedes additional debugger features.
 ## Work after MemoryView
 
 After Phase 20, development moves to a separate main-application roadmap covering scanning correctness and performance, scan-result management, address-list workflows, settings, persistence, process selection/attachment, hotkeys, and the remaining primary-window features. MemoryView work is not allowed to obscure or silently expand that later scope.
+
+That main-application roadmap must include first-class Auto Assembler cheat records. The AA editor will provide **Add to Cheat Table** / **Send to Address List**, and the main cheat list will support enable, disable, edit, rename, duplicate, delete, hotkeys, visible errors/state, and ordered script dependencies through the same AA service. The table format must evolve from its current address-only `CheatEntry` model to a versioned record-kind model with backward-compatible migration. Script source is persisted; live allocations, resolved addresses, and enable-session handles are not. Full requirements are recorded in `12_AUTO_ASSEMBLER_RESEARCH.md`.

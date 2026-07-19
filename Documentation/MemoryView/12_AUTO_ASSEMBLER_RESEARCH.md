@@ -163,6 +163,23 @@ Recommended contracts:
 
 The compiler must return a preview containing resolved addresses, allocated ranges, original bytes, replacement bytes, protection changes, symbols, external actions, and diagnostics before Apply is allowed.
 
+## Cheat-table and main address-list integration
+
+The AA editor must provide **Add to Cheat Table** / **Send to Address List** once the main-application integration phase begins. This creates a first-class script record rather than flattening the script into a normal address/value entry. The record must support:
+
+- description, stable record ID, script source, enabled state, activation order, optional hotkeys, and user-visible diagnostics;
+- enable/disable from the main cheat list using the same `IAutoAssemblerService` used by the editor;
+- edit, rename, duplicate, delete, and open-in-AA-editor actions;
+- truthful `Disabled`, `Enabling`, `Enabled`, `Disabling`, `Error`, and `Target unavailable` states;
+- persistence of source text, but never persistence of live addresses, allocation handles, or a reusable enabled session;
+- recompile and fresh target-identity validation after process restart or table reload;
+- disable-before-edit and disable-before-delete behavior when an active session exists, with explicit recovery if restoration fails;
+- dependency/order metadata for scripts that intentionally consume symbols registered by earlier records.
+
+The current `CheatEntry` schema models only address/value records. Main-application work therefore needs a versioned discriminated record model, for example `AddressRecord` and `AutoAssemblerRecord`, plus migration of existing version 2.0 JSON tables. Unknown future record kinds must produce a clear compatibility error or be preserved losslessly; they must not be silently discarded.
+
+The editor-to-table command may be exposed during Phase 18 only if the main cheat-list contract is ready. Otherwise it remains visibly marked as a later main-application feature. It must never create a button that appears to succeed while losing the script or enable state.
+
 ## Safety and trust model
 
 AA scripts can modify executable memory, allocate executable pages, spawn remote threads, load DLLs, execute Lua, access files through includes, and potentially invoke CLR APIs through CrxMem's current `LoadCLRPackage` configuration. Treat downloaded scripts as executable code, not data.
@@ -213,6 +230,7 @@ These features must fail with explicit unsupported-capability diagnostics until 
 - Fake-service tests for ambiguous AOBs, cancellation, allocation failure, assertion mismatch, partial write, protection failure, read-back mismatch, and rollback.
 - Benign native target tests for enable, observable behavior, disable restoration, symbols, allocation cleanup, process exit, and restart/PID reuse.
 - Lua tests proving syntax-check behavior, generated-source substitution, capability denial, cancellation, and error line mapping.
+- Cheat-table tests for script-record serialization, version migration, edit/duplicate/delete behavior, process restart, failed enable/disable recovery, and ordered symbol dependencies.
 - Differential compatibility corpus: run non-destructive scripts through Cheat Engine syntax checking and CrxMem compilation and compare resolved symbols/bytes. Never execute comparison scripts against third-party processes.
 
 ## Immediate corrective action before Phase 18
