@@ -22,6 +22,8 @@ public sealed class MemoryViewLayoutSettings
     public double RowHeight { get; set; } = 21;
     public Dictionary<string, List<double>> ColumnWidths { get; set; } = new();
     public List<string> RecentExpressions { get; set; } = new();
+    public List<string> RecentHexExpressions { get; set; } = new();
+    public bool MicrosoftSymbolServerEnabled { get; set; }
 }
 
 public interface IMemoryViewLayoutStore
@@ -56,6 +58,9 @@ public sealed class MemoryViewLayoutStore : IMemoryViewLayoutStore
                 .Take(20)
                 .ToList();
             settings.ColumnWidths ??= new Dictionary<string, List<double>>();
+            settings.RecentHexExpressions = (settings.RecentHexExpressions ?? new List<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToList();
             return settings;
         }
         catch

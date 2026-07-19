@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 20 final acceptance / CrxMem 1.2.0
+
+- Passed all 119 Release tests with debug, patch, breakpoint, performance, and AA native gates enabled.
+- Persisted bottom-grid columns, independent hex recents, and symbol-server policy.
+- Updated the final verified matrix, AA compatibility boundary, recovery notes, known limitations, and version metadata.
+- Retained the legacy viewer for the 1.2.0 release.
+
 ## 2026-07-19 — Phase 19 restricted Lua AA compatibility
 
 - Added isolated AA Lua preprocessing without CLR loading or dangerous Lua libraries.

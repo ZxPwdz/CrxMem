@@ -172,12 +172,14 @@ public partial class MemoryViewWindow : Window
         _codeFontSize = Math.Clamp(settings.CodeFontSize, 10, 20);
         _rowHeight = Math.Clamp(settings.RowHeight, 18, 32);
         ApplyCodeMetrics();
-        ConfigureColumnWidths();
+        ConfigureColumnWidths(settings.ColumnWidths);
         showInspectorMenu.IsChecked = settings.InspectorVisible;
         showPatchEditorMenu.IsChecked = settings.PatchEditorVisible;
         SetInspectorVisible(settings.InspectorVisible);
         SetPatchEditorVisible(settings.PatchEditorVisible);
         _viewModel.LoadRecentExpressions(settings.RecentExpressions);
+        _viewModel.LoadRecentHexExpressions(settings.RecentHexExpressions);
+        _viewModel.SetMicrosoftSymbolServerEnabled(settings.MicrosoftSymbolServerEnabled);
 
         if (settings.WindowLeft is double left && settings.WindowTop is double top &&
             double.IsFinite(left) && double.IsFinite(top) &&
@@ -213,7 +215,10 @@ public partial class MemoryViewWindow : Window
                 PatchEditorVisible = showPatchEditorMenu.IsChecked,
                 CodeFontSize = _codeFontSize,
                 RowHeight = _rowHeight,
-                RecentExpressions = _viewModel.RecentExpressions.ToList()
+                RecentExpressions = _viewModel.RecentExpressions.ToList(),
+                RecentHexExpressions = _viewModel.RecentHexExpressions.ToList(),
+                MicrosoftSymbolServerEnabled = _viewModel.MicrosoftSymbolServerEnabled,
+                ColumnWidths = CaptureColumnWidths()
             });
         }
         catch
@@ -291,10 +296,17 @@ public partial class MemoryViewWindow : Window
         yield return ("Threads", threadsGrid);
     }
 
-    private void ConfigureColumnWidths()
+    private void ConfigureColumnWidths(IReadOnlyDictionary<string, List<double>>? saved = null)
     {
         foreach ((string name, System.Windows.Controls.DataGrid grid) in TrackedGrids())
         {
+            if (saved != null && saved.TryGetValue(name, out List<double>? widths) && widths.Count == grid.Columns.Count &&
+                widths.All(width => double.IsFinite(width) && width >= 20 && width <= 2000))
+            {
+                for (int index = 0; index < grid.Columns.Count; index++)
+                    grid.Columns[index].Width = new DataGridLength(widths[index]);
+                continue;
+            }
             int lastIndex = grid.Columns.Count - 1;
             for (int index = 0; index < lastIndex; index++)
             {
@@ -310,6 +322,11 @@ public partial class MemoryViewWindow : Window
             }
         }
     }
+
+    private Dictionary<string, List<double>> CaptureColumnWidths() => TrackedGrids().ToDictionary(
+        item => item.Name,
+        item => item.Grid.Columns.Select(column => Math.Clamp(column.ActualWidth, 20, 2000)).ToList(),
+        StringComparer.OrdinalIgnoreCase);
 
     private async void PanelGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {

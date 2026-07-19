@@ -188,7 +188,9 @@ public sealed class MemoryViewLayoutStoreTests : IDisposable
               CodeFontSize = 15,
               RowHeight = 25,
               ColumnWidths = new Dictionary<string, List<double>> { ["Threads"] = new() { 80, 160 } },
-              RecentExpressions = new List<string> { "Target.exe+1000", "", "target.exe+1000", "2000" }
+              RecentExpressions = new List<string> { "Target.exe+1000", "", "target.exe+1000", "2000" },
+              RecentHexExpressions = new List<string> { "3000", "", "3000", "4000" },
+              MicrosoftSymbolServerEnabled = true
         };
 
         store.Save(settings);
@@ -205,6 +207,8 @@ public sealed class MemoryViewLayoutStoreTests : IDisposable
           Assert.Equal(25, loaded.RowHeight);
           Assert.Equal(new double[] { 80, 160 }, loaded.ColumnWidths["Threads"]);
         Assert.Equal(new[] { "Target.exe+1000", "2000" }, loaded.RecentExpressions);
+        Assert.Equal(new[] { "3000", "4000" }, loaded.RecentHexExpressions);
+        Assert.True(loaded.MicrosoftSymbolServerEnabled);
     }
 
     [Fact]

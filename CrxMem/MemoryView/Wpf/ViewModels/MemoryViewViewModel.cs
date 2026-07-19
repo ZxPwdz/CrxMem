@@ -184,6 +184,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         set { if (SetField(ref _hexAddressExpression, value)) _navigateHexCommand.RaiseCanExecuteChanged(); }
     }
     public ObservableCollection<string> RecentExpressions { get; } = new();
+    public ObservableCollection<string> RecentHexExpressions { get; } = new();
     public ObservableCollection<RegisterValue> Registers { get; } = new();
     public ObservableCollection<StackPreviewRow> StackRows { get; } = new();
     public ObservableCollection<WatchPreviewRow> Watches { get; } = new();
@@ -552,7 +553,11 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         HexFocusAddress = address;
         HexAddressExpression = expression;
         Status = _hexMemorySource?.Status ?? "Hex view unavailable.";
-        if (addToHistory) _hexHistory.Push(new NavigationEntry(address, expression, address));
+        if (addToHistory)
+        {
+            _hexHistory.Push(new NavigationEntry(address, expression, address));
+            RememberRecent(RecentHexExpressions, expression);
+        }
         RaiseHexHistoryCanExecuteChanged();
         _refreshHexCommand.RaiseCanExecuteChanged();
     }
@@ -1309,14 +1314,26 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             RecentExpressions.Add(expression);
     }
 
+    public void LoadRecentHexExpressions(IEnumerable<string> expressions)
+    {
+        RecentHexExpressions.Clear();
+        foreach (string expression in expressions.Where(value => !string.IsNullOrWhiteSpace(value))
+                     .Distinct(StringComparer.OrdinalIgnoreCase).Take(20))
+            RecentHexExpressions.Add(expression);
+    }
+
     private void RememberExpression(string expression)
     {
+        RememberRecent(RecentExpressions, expression);
+    }
+
+    private static void RememberRecent(ObservableCollection<string> collection, string expression)
+    {
         if (string.IsNullOrWhiteSpace(expression)) return;
-        string? existing = RecentExpressions.FirstOrDefault(value =>
-            value.Equals(expression, StringComparison.OrdinalIgnoreCase));
-        if (existing != null) RecentExpressions.Remove(existing);
-        RecentExpressions.Insert(0, expression);
-        while (RecentExpressions.Count > 20) RecentExpressions.RemoveAt(RecentExpressions.Count - 1);
+        string? existing = collection.FirstOrDefault(value => value.Equals(expression, StringComparison.OrdinalIgnoreCase));
+        if (existing != null) collection.Remove(existing);
+        collection.Insert(0, expression);
+        while (collection.Count > 20) collection.RemoveAt(collection.Count - 1);
     }
 
     private void RaiseHistoryCanExecuteChanged()

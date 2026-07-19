@@ -1,63 +1,67 @@
-# MemoryView WPF Final Handoff
+# MemoryView WPF Final Handoff — CrxMem 1.2.0
 
 ## Release decision
 
-The WPF MemoryView is the main `Memory View` route. The previous viewer remains available under `Tools > Memory Viewer (Legacy)` and will be retained for at least one release.
+The WPF MemoryView remains the primary `Memory View` route. `Memory Viewer (Legacy)` remains available for at least the 1.2.0 release and is not removed by this milestone.
 
-This route was promoted at the project owner's direction so the redesign is the normal testing surface. Phases 2–11 delivered a stable service-oriented WPF debugger and inspection surface; the outstanding parity items below remain explicitly documented and gated.
+Phases 15–20 close the reported interaction, native unwind, register-write, and safe Auto Assembler milestones. Unsupported Cheat Engine compatibility forms remain disabled with diagnostics rather than silently approximated.
 
-## Verified capabilities
+## Verified capability matrix
 
-| Area | Status | Evidence |
+| Area | Status | Verification |
 | --- | --- | --- |
-| Process/module/memory inspection | Pass | Typed complete, partial, unreadable, cancelled, and terminated results; cancellable background loading |
-| Address navigation | Pass | Absolute/module/RVA arithmetic, bounded dereferences, registers when paused, history, stale-result rejection |
-| Disassembly | Pass | Bounded Iced service, immutable rows/tokens, visible-row rendering, markers, branch targets and flows |
-| Debug session | Pass | Native attach/detach, pause/resume, process exit, selected thread, x86/x64 context capture |
-| Registers and flags | Pass (read-only) | Paused-snapshot invariant and changed-value highlighting; editing remains gated |
-| Hex/stack/watch | Partial | Hex range editing is safely routed, but full-region paging and independent address navigation remain Phase 15 blockers |
-| Safe byte patches | Pass | Original-byte validation, protection restoration, cache flush, read-back, rollback, undo/redo |
-| Breakpoints and stepping | Pass | Software and hardware breakpoints, reinsertion, hit counts, thread propagation, step/run commands |
-| Remaining panels | Pass with labelled limitations | Breakpoints, memory map, modules, threads, patches and heuristic call-stack projection |
-| Accessibility/persistence | Pass | Keyboard focus, non-color state labels, font/density settings, pane/window/tab persistence, content-sized tool columns |
-| Default route | WPF promoted by owner decision | Legacy remains explicitly available while the outstanding items are completed |
+| Process inspection | Pass | Selection/inspection does not attach or suspend; complete, partial, unreadable, cancelled, guard, and exited states are explicit |
+| Metadata | Pass | Structured mutation diagnostics; module fingerprint plus RVA persistence across ASLR/restart |
+| Navigation/disassembly | Pass | Address expressions, centered history, stale-result rejection, bounded Iced decoding, virtual rendering |
+| Full-region hex | Pass | Virtual region rows, 4 KB demand pages, 128-page LRU, coalescing, cancellation, adjacent-region navigation, independent history |
+| Context commands | Pass with gated commands | Copy/follow/metadata/watch/address-list/breakpoint/patch/inspection routes; unavailable debugger features remain visibly disabled |
+| Native call stack/symbols | Pass | Serialized x64/WOW64 DbgHelp unwind, local symbols/source, module+RVA fallback, opt-in Microsoft server |
+| Registers/flags | Pass | Paused thread/generation invariants, x86/x64 write, recapture, verification, verified rollback, DR ownership |
+| Patching | Pass | Expected-original validation, protection restoration, cache flush, read-back, rollback, history, undo/redo |
+| Auto Assembler core | Pass for documented corpus | Immutable preview, assertions, bounded AOB, exact allocations, data/instructions, transactional enable/disable |
+| Restricted AA Lua | Pass for documented subset | Separate state, no CLR, dangerous libraries removed, instruction/time/output limits, source mapping, capability trust |
+| Persistence/accessibility | Pass in automated coverage | Pane/window/tab/columns/fonts/density/recent disassembly+hex/symbol policy; keyboard/focus/non-color states |
 
-## Outstanding parity gates
+## Auto Assembler compatibility
 
-1. Repair and integration-test real-process comment/bookmark workflows.
-2. Add page-backed full-region hex browsing and independent hex address navigation.
-3. Complete the address context-menu parity audit and implement every verified state-aware action.
-4. Replace the placeholder Lua `autoAssemble` binding with the stateful, transactional Auto Assembler design in `12_AUTO_ASSEMBLER_RESEARCH.md`; memory operands and multi-line scripts remain gated until that compiler exists.
-5. Replace heuristic stack scanning with native unwind metadata and optional symbol/source resolution.
-6. Add register write-back only after paused-thread integration tests prove restoration and error handling.
-7. Complete manual per-monitor DPI checks and consider configurable internal disassembly columns.
+Supported: `[ENABLE]`, `[DISABLE]`, bitness sections, comments, `define`, labels, `db/dw/dd/dq`, `assert`, `aobscan` variants, `alloc/allocnx/allocxo`, `globalalloc/sharedalloc`, `dealloc`, symbol registration, `readmem`, `align`, module/address expressions, common Iced-backed instructions, exact preview, and process-bound enable/disable sessions.
 
-## Performance and test record
+Restricted support: `{$LUA}` generated AA, `autoAssemble`, `autoAssembleCheck`, custom `aaCommand`, and approved-root `include`. Lua has no CLR, filesystem, OS, package, debug, or native loading access. Nested mutation requires per-session trust.
 
-- Warm local-target navigation median: **1.72 ms** over seven fresh-cache samples (1.11–3.40 ms), against a 250 ms engineering budget on the development machine.
-- Renderer coverage: 100%, 125%, 150%, and 200% DPI.
-- A 100,000-row disassembly source renders only the visible viewport inside the three-second guardrail.
-- Default Release tests cover parsers, state transitions, deltas, cancellation, stale results, layout/resources, selection synchronization, patch failure recovery, and a live-process WPF render smoke test.
-- Opt-in Windows tests cover native debug attach/pause/resume/detach, patches, software/hardware breakpoints, and the isolated performance probe.
+Explicitly unavailable in 1.2.0: `createthread`, `createthreadandwait`, `loadlibrary`, `reassemble` forms not handled by the current binder, `{$LUACODE}`, `{$C}`, `{$CCODE}`, kernel allocations, driver-only directives, and unimplemented Intel/NASM operand forms. These fail with named diagnostics and make the plan non-applicable.
 
-Run the full native verification explicitly:
+Main cheat-table `AutoAssemblerRecord` enable/disable/edit integration is intentionally deferred to the main-application roadmap. Current version 2.0 address tables remain unchanged.
+
+## Acceptance record
+
+- Release build: successful, zero errors.
+- Default plus all opt-in Windows gates: **119 passed, 0 failed**.
+- Native gates exercised: debug attach/pause/resume/detach, DbgHelp unwind, register mutate/verify/restore, software/hardware breakpoints, verified patch apply/restore, AA enable/disable, and local navigation performance.
+- A 100,000-row disassembly source renders only its viewport in automated WPF coverage.
+- Local-target navigation performance test passed its 250 ms median budget.
+- DPI resources/render coverage exists for 100%, 125%, 150%, and 200%; final per-monitor visual judgment remains a manual workstation check.
+- No test target was left suspended or running. Debug, symbol, patch, and AA test targets detached or terminated cleanly.
+
+Run the complete native suite:
 
 ```powershell
 $env:CRXMEM_RUN_DEBUG_TESTS = '1'
 $env:CRXMEM_RUN_PATCH_TESTS = '1'
 $env:CRXMEM_RUN_BREAKPOINT_TESTS = '1'
 $env:CRXMEM_RUN_PERF_TESTS = '1'
+$env:CRXMEM_RUN_AA_TESTS = '1'
 dotnet test CrxMem.sln -c Release --no-build
 ```
 
-## Recovery and compatibility
+## Recovery and safety
 
-- The WPF viewer is reachable through the main `Memory View` button and `Tools > Memory View (WPF)`.
-- The legacy viewer remains separately reachable through `Tools > Memory Viewer (Legacy)`.
-- WPF layout is stored at `%LocalAppData%\CrxMem\MemoryView.layout.json`; close the window and rename or delete that file to reset layout safely.
-- Fingerprint-backed module-relative patch history survives restarts and reports restored/applied/stale state from current bytes. Absolute-address entries remain session-local and no persisted patch is auto-applied.
-- Each phase is a dedicated Git commit, allowing an individual phase to be reviewed or reverted without discarding the legacy route.
+- Layout: `%LocalAppData%\CrxMem\MemoryView.layout.json`; rename it while MemoryView is closed to reset layout.
+- Metadata and patch history use atomic/versioned stores and fingerprint-backed module-relative locations. Stale binaries do not receive persisted writes.
+- An AA preview never mutates. Apply aborts if the PID/start time/architecture, assertion bytes, original bytes, or exact allocation location changed.
+- AA failure rolls back verified writes and allocations in reverse order. Incomplete disable retains a recoverable session error instead of claiming success.
+- Microsoft symbol downloads remain opt-in and use `%LocalAppData%\CrxMem\Symbols`.
+- The legacy viewer provides a release fallback while 1.2.0 is manually exercised against Notepad and Gunz.
 
-## Recommended next milestone
+## Next milestone
 
-Phase 15 is the current release-blocking milestone: repair real-process comments/bookmarks, add full-region page-backed hex navigation, and complete address context-command parity. Native unwinding and register editing follow in Phases 16 and 17. The Auto Assembler is then delivered as a safe core compiler/executor in Phase 18 and trusted Lua compatibility in Phase 19, before final acceptance in Phase 20.
+Move to the main application: first-class Auto Assembler cheat-table records, enable/disable/edit state, script hotkeys, table migration, then scanner and main-window parity work. Do not remove the legacy Memory Viewer until a later explicit release decision.
