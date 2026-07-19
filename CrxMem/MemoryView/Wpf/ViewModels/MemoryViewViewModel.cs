@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using CrxMem.MemoryView.Wpf.Models;
@@ -26,6 +27,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     private readonly IMemoryMapService? _memoryMapService;
     private readonly IHexMemorySourceFactory? _hexMemorySourceFactory;
     private readonly IMemoryViewHostBridge? _hostBridge;
+    private readonly ICallStackService? _callStackService;
+    private readonly ISymbolService? _symbolService;
     private readonly SynchronizationContext? _uiContext;
     private readonly AsyncRelayCommand _navigateCommand;
     private readonly AsyncRelayCommand _backCommand;
@@ -104,7 +107,9 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         IThreadService? threadService = null,
         IMemoryMapService? memoryMapService = null,
         IHexMemorySourceFactory? hexMemorySourceFactory = null,
-        IMemoryViewHostBridge? hostBridge = null)
+        IMemoryViewHostBridge? hostBridge = null,
+        ICallStackService? callStackService = null,
+        ISymbolService? symbolService = null)
     {
         _dataService = dataService;
         _history = history ?? new NavigationHistoryService();
@@ -122,6 +127,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _memoryMapService = memoryMapService;
         _hexMemorySourceFactory = hexMemorySourceFactory;
         _hostBridge = hostBridge;
+        _callStackService = callStackService;
+        _symbolService = symbolService;
         _hexItems = HexRows;
         _uiContext = SynchronizationContext.Current;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
@@ -217,6 +224,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
     public ICommand HexForwardCommand => _hexForwardCommand;
     public ICommand RefreshHexCommand => _refreshHexCommand;
     public bool CanAddSelectedAddressToHost => _hostBridge?.CanAddAddress == true && SelectedInstruction != null;
+    public bool MicrosoftSymbolServerEnabled => _symbolService?.MicrosoftSymbolServerEnabled == true;
 
     public string AddressExpression
     {
@@ -567,6 +575,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             if (_debugSession is IDisposable disposable) disposable.Dispose();
         }
         if (_patchService is IDisposable patchDisposable) patchDisposable.Dispose();
+        _symbolService?.Dispose();
     }
 
     private async Task AttachDebuggerAsync()
@@ -685,7 +694,36 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         StackRows.Clear();
         foreach (StackPreviewRow row in rows) StackRows.Add(row);
         CallStackFrames.Clear();
-        foreach (CallStackPanelRow row in rows.ToHeuristicCallStack()) CallStackFrames.Add(row);
+        UnwindResult? unwind = _callStackService == null || _debugSession == null
+            ? null
+            : await _callStackService.UnwindAsync(_debugSession.Snapshot, snapshot, 128, CancellationToken.None);
+        if (_lastRegisterSnapshot != snapshot) return;
+        if (unwind?.IsAvailable == true)
+        {
+            foreach (CallStackFrame frame in unwind.Frames)
+            {
+                string label = frame.Symbol.SourceFile == null
+                    ? frame.Symbol.DisplayName
+                    : $"{frame.Symbol.DisplayName} · {Path.GetFileName(frame.Symbol.SourceFile)}:{frame.Symbol.SourceLine}";
+                CallStackFrames.Add(new CallStackPanelRow(frame.Index,
+                    frame.InstructionAddress.ToString(snapshot.Is64Bit ? "X16" : "X8"),
+                    label, "Native unwind", frame.InstructionAddress));
+            }
+        }
+        else
+        {
+            foreach (CallStackPanelRow row in rows.ToHeuristicCallStack()) CallStackFrames.Add(row);
+            if (!string.IsNullOrWhiteSpace(unwind?.Error)) Status = $"{unwind.Error} Showing heuristic stack candidates.";
+        }
+    }
+
+    public void SetMicrosoftSymbolServerEnabled(bool enabled)
+    {
+        _symbolService?.SetMicrosoftSymbolServerEnabled(enabled);
+        OnPropertyChanged(nameof(MicrosoftSymbolServerEnabled));
+        Status = enabled
+            ? "Microsoft Symbol Server enabled. Missing symbols may be downloaded on the next paused unwind."
+            : "Microsoft Symbol Server disabled. Only local symbols will be used.";
     }
 
     private async Task AddWatchAsync()

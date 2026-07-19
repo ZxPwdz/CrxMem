@@ -46,7 +46,9 @@ public partial class MemoryViewWindow : Window
             composition.ThreadService,
             composition.MemoryMapService,
             composition.HexMemorySourceFactory,
-            hostBridge)
+            hostBridge,
+            composition.CallStackService,
+            composition.SymbolService)
     {
     }
 
@@ -67,7 +69,9 @@ public partial class MemoryViewWindow : Window
         IThreadService? threadService = null,
         IMemoryMapService? memoryMapService = null,
         IHexMemorySourceFactory? hexMemorySourceFactory = null,
-        IMemoryViewHostBridge? hostBridge = null)
+        IMemoryViewHostBridge? hostBridge = null,
+        ICallStackService? callStackService = null,
+        ISymbolService? symbolService = null)
     {
         InitializeComponent();
         _startAddress = unchecked((ulong)startAddress.ToInt64());
@@ -87,7 +91,9 @@ public partial class MemoryViewWindow : Window
             threadService: threadService,
             memoryMapService: memoryMapService,
             hexMemorySourceFactory: hexMemorySourceFactory,
-            hostBridge: hostBridge);
+            hostBridge: hostBridge,
+            callStackService: callStackService,
+            symbolService: symbolService);
         DataContext = _viewModel;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
@@ -463,6 +469,23 @@ public partial class MemoryViewWindow : Window
     private void InspectModule_Click(object sender, RoutedEventArgs e) =>
         toolsTabControl.SelectedItem = modulesTab;
 
+    private void MicrosoftSymbols_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = microsoftSymbolsMenu.IsChecked;
+        if (enabled)
+        {
+            MessageBoxResult answer = System.Windows.MessageBox.Show(this,
+                "Allow CrxMem to contact Microsoft's public symbol server and cache downloaded symbols locally?",
+                "Enable online symbols", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (answer != MessageBoxResult.Yes)
+            {
+                microsoftSymbolsMenu.IsChecked = false;
+                enabled = false;
+            }
+        }
+        _viewModel.SetMicrosoftSymbolServerEnabled(enabled);
+    }
+
     private async void EditMetadata_Click(object sender, RoutedEventArgs e) =>
         await EditSelectedMetadataAsync();
 
@@ -575,6 +598,7 @@ public partial class MemoryViewWindow : Window
         var patchAdapter = new ProcessPatchMemoryAdapter(process);
         var patches = new PatchService(patchAdapter, new JsonPatchHistoryStore(), moduleIdentity);
         var debugSession = new NativeDebugSessionService(process);
+        var dbgHelp = new WindowsDbgHelpService(process, modules);
         var breakpoints = new BreakpointService(
             patchAdapter,
             patches,
@@ -595,7 +619,9 @@ public partial class MemoryViewWindow : Window
             metadata,
             new ProcessThreadService(process),
             new ProcessMemoryMapService(process),
-            new HexMemorySourceFactory(memory));
+            new HexMemorySourceFactory(memory),
+            dbgHelp,
+            dbgHelp);
     }
 
     private sealed record MemoryViewComposition(
@@ -611,7 +637,9 @@ public partial class MemoryViewWindow : Window
         IEditableMemoryMetadataService MetadataService,
         IThreadService ThreadService,
         IMemoryMapService MemoryMapService,
-        IHexMemorySourceFactory HexMemorySourceFactory);
+        IHexMemorySourceFactory HexMemorySourceFactory,
+        ICallStackService CallStackService,
+        ISymbolService SymbolService);
 
     private void About_Click(object sender, RoutedEventArgs e) =>
         System.Windows.MessageBox.Show(this,

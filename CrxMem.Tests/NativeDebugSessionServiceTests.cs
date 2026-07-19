@@ -43,6 +43,19 @@ public sealed class NativeDebugSessionServiceTests
             await ResumeThroughStartupBreakpointsAsync(service);
             await service.PauseAsync(CancellationToken.None);
             await WaitForStateAsync(service, DebugSessionState.Paused);
+
+            var registerService = new WindowsRegisterService(process);
+            RegisterCaptureResult registers = await registerService.CaptureAsync(
+                service.Snapshot, null, CancellationToken.None);
+            Assert.True(registers.IsAvailable, registers.Error);
+            using (var dbgHelp = new WindowsDbgHelpService(process, new ModuleService(process)))
+            {
+                UnwindResult unwind = await dbgHelp.UnwindAsync(
+                    service.Snapshot, registers.Snapshot!, 64, CancellationToken.None);
+                Assert.True(unwind.IsAvailable, unwind.Error);
+                Assert.NotEmpty(unwind.Frames);
+                Assert.All(unwind.Frames, frame => Assert.NotEqual(0UL, frame.InstructionAddress));
+            }
             await service.DetachAsync(CancellationToken.None);
 
             Assert.True(

@@ -1,5 +1,12 @@
 # MemoryView Development Changelog
 
+## 2026-07-19 — Phase 16 native call stack and symbols
+
+- Added serialized DbgHelp stack walking for x64 and WOW64/x86 paused-thread contexts.
+- Added local module/PDB/export and source-line resolution with module-plus-RVA fallback.
+- Added explicit opt-in Microsoft symbol-server policy and lifecycle cleanup.
+- Preserved the visibly labelled heuristic scan only as a native-unwind fallback.
+
 ## 2026-07-19 — Phase 15 interaction and data parity
 
 - Replaced silent metadata Boolean writes with structured mutation diagnostics.

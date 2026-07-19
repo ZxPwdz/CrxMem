@@ -28,6 +28,26 @@ public sealed class MemoryViewDebugViewModelTests
         Assert.False(viewModel.PauseCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task PausedEvent_PrefersNativeUnwindFramesOverHeuristicProjection()
+    {
+        var debug = new FakeDebugSessionService();
+        using var viewModel = new MemoryViewViewModel(
+            new EmptyMemoryViewDataService(),
+            debugSession: debug,
+            registerService: new FakeRegisterService(),
+            stackService: new FakeStackService(),
+            callStackService: new FakeCallStackService());
+
+        debug.Publish(new DebugSessionSnapshot(DebugSessionState.Paused, 42, 7, "Breakpoint"));
+        await WaitUntilAsync(() => viewModel.CallStackFrames.Count == 1);
+
+        CallStackPanelRow frame = Assert.Single(viewModel.CallStackFrames);
+        Assert.Equal("Target!Update+0x12", frame.Label);
+        Assert.Equal("Native unwind", frame.Confidence);
+        Assert.Equal(0x140001000UL, frame.RuntimeAddress);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -84,5 +104,27 @@ public sealed class MemoryViewDebugViewModelTests
                 DateTimeOffset.UtcNow);
             return Task.FromResult(RegisterCaptureResult.Captured(snapshot));
         }
+    }
+
+    private sealed class FakeStackService : IStackService
+    {
+        public Task<IReadOnlyList<StackPreviewRow>> ReadAsync(
+            RegisterSnapshot registers, int entryCount, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StackPreviewRow>>(new[]
+            {
+                new StackPreviewRow("000000007FFFFFF0", "0000000140002000", "Target+2000 (heuristic)",
+                    0x7FFFFFF0, 0x140002000, true)
+            });
+    }
+
+    private sealed class FakeCallStackService : ICallStackService
+    {
+        public Task<UnwindResult> UnwindAsync(
+            DebugSessionSnapshot session, RegisterSnapshot registers, int maximumFrames,
+            CancellationToken cancellationToken) => Task.FromResult(new UnwindResult(true, new[]
+            {
+                new CallStackFrame(0, 0x140001000, 0x7FFFFFF0,
+                    new SymbolResolution(0x140001000, "Target!Update+0x12", "Target.exe", 0x1000))
+            }));
     }
 }

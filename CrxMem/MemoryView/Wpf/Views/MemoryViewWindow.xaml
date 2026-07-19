@@ -104,7 +104,11 @@
                 <MenuItem Header="_Edit Comment / Bookmark" Click="EditMetadata_Click" InputGestureText=";"/>
                 <MenuItem Header="_Toggle Bookmark" Click="ToggleBookmark_Click" InputGestureText="Ctrl+D"/>
             </MenuItem>
-            <MenuItem Header="_Tools" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="No WPF tools are available in this preview"/>
+            <MenuItem Header="_Tools">
+                <MenuItem x:Name="microsoftSymbolsMenu" Header="Use _Microsoft Symbol Server" IsCheckable="True"
+                          IsChecked="{Binding MicrosoftSymbolServerEnabled, Mode=OneWay}" Click="MicrosoftSymbols_Click"
+                          ToolTip="Local symbols are always tried first. Enabling this permits symbol downloads from Microsoft."/>
+            </MenuItem>
             <MenuItem Header="_Window" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Layout presets are planned"/>
             <MenuItem Header="_Help"><MenuItem Header="About this preview" Click="About_Click"/></MenuItem>
         </Menu>
