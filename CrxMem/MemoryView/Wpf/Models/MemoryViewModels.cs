@@ -21,7 +21,12 @@ public sealed record DisassemblyPreviewRow(
     string Comment,
     ulong RuntimeAddress,
     IReadOnlyList<DisassemblyToken>? Tokens = null,
-    ulong? FlowTarget = null);
+    ulong? FlowTarget = null,
+    Guid? AnnotationId = null,
+    string? BookmarkLabel = null,
+    string? UserComment = null,
+    string? ResolvedSymbol = null,
+    string? BookmarkColor = null);
 
 public sealed record HexPreviewRow(
     string Address,

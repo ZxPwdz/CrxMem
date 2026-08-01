@@ -30,6 +30,11 @@ public sealed record AutoAssemblerCompileResult(AutoAssemblerPlan? Plan, IReadOn
 {
     public bool Succeeded => Plan?.CanApply == true;
 }
+public sealed record AutoAssemblerEditorContext(
+    int Bitness,
+    string? ModuleName,
+    string? AddressExpression,
+    string? OriginalBytes);
 public sealed record AutoAssemblerSession(Guid Id, Guid PlanId, string ScriptHash, int ProcessId,
     DateTime ProcessStartTimeUtc, IReadOnlyList<PatchRecord> Patches, IReadOnlyList<AutoAssemblerAllocation> Allocations,
     IReadOnlyDictionary<string, ulong> Symbols, bool IsEnabled, string? RecoveryError = null);

@@ -4,9 +4,120 @@
         Title="CrxMem Auto Assembler" Width="920" Height="700" MinWidth="700" MinHeight="500"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource MemoryView.WindowBackgroundBrush}"
         Foreground="{DynamicResource MemoryView.TextPrimaryBrush}">
-    <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="../Themes/MemoryView.Controls.xaml"/>
-    </ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Themes/MemoryView.Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="Aa.SurfaceBrush" Color="#171D23"/>
+            <SolidColorBrush x:Key="Aa.SurfaceRaisedBrush" Color="#1D252D"/>
+            <SolidColorBrush x:Key="Aa.ScrollTrackBrush" Color="#11171C"/>
+            <Style TargetType="GroupBox">
+                <Setter Property="Foreground" Value="{StaticResource MemoryView.TextSecondaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/>
+                <Setter Property="Background" Value="{StaticResource Aa.SurfaceBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value><ControlTemplate TargetType="GroupBox">
+                        <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                            <Border Background="{StaticResource Aa.SurfaceRaisedBrush}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1,1,1,0" Padding="8,4">
+                                <ContentPresenter ContentSource="Header"/>
+                            </Border>
+                            <Border Grid.Row="1" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1" Padding="4"><ContentPresenter/></Border>
+                        </Grid>
+                    </ControlTemplate></Setter.Value>
+                </Setter>
+            </Style>
+            <Style TargetType="ListBox">
+                <Setter Property="Background" Value="{StaticResource Aa.SurfaceBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            </Style>
+            <Style TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+                <Setter Property="Padding" Value="5,3"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style TargetType="ComboBox">
+                <Setter Property="Background" Value="{StaticResource Aa.SurfaceRaisedBrush}"/><Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource MemoryView.BorderBrush}"/><Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="7,4"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="DropDownToggle" Focusable="False" ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                      Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/></Grid.ColumnDefinitions>
+                                <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                  Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
+                                <TextBlock Grid.Column="1" Text="▼" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MemoryView.TextSecondaryBrush}"/>
+                            </Grid>
+                        </ToggleButton>
+                        <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False">
+                            <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="320" Background="{StaticResource Aa.SurfaceRaisedBrush}"
+                                    BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="1">
+                                <ScrollViewer><ItemsPresenter/></ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="DropDownToggle" Property="Background" Value="{StaticResource MemoryView.HoverBackgroundBrush}"/></Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="DropDownToggle" Property="BorderBrush" Value="{StaticResource MemoryView.FocusBrush}"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/><Setter Property="Opacity" Value="0.65"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Background" Value="{StaticResource Aa.SurfaceRaisedBrush}"/><Setter Property="Foreground" Value="{StaticResource MemoryView.TextPrimaryBrush}"/>
+                <Setter Property="Padding" Value="7,4"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/></Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{StaticResource MemoryView.TextDisabledBrush}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+                <Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="{StaticResource MemoryView.SelectionBackgroundBrush}"/><Setter Property="Foreground" Value="White"/></Trigger></Style.Triggers>
+            </Style>
+            <Style TargetType="ScrollBar">
+                <Setter Property="Background" Value="{StaticResource Aa.ScrollTrackBrush}"/><Setter Property="Width" Value="12"/><Setter Property="Height" Value="12"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+                    <Track x:Name="PART_Track" IsDirectionReversed="True">
+                        <Track.DecreaseRepeatButton><RepeatButton Command="ScrollBar.PageUpCommand" Background="{TemplateBinding Background}" BorderThickness="0"/></Track.DecreaseRepeatButton>
+                        <Track.Thumb><Thumb Background="{StaticResource MemoryView.BorderBrush}" BorderBrush="{StaticResource MemoryView.TextMutedBrush}" BorderThickness="1"/></Track.Thumb>
+                        <Track.IncreaseRepeatButton><RepeatButton Command="ScrollBar.PageDownCommand" Background="{TemplateBinding Background}" BorderThickness="0"/></Track.IncreaseRepeatButton>
+                    </Track>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal"><Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
+            <DataTemplate x:Key="Aa.DiagnosticTemplate">
+                <Grid ToolTip="Double-click to select this source line">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="70"/><ColumnDefinition Width="58"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="SeverityIcon" Text="●" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Code}" FontFamily="Consolas" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Location}" FontFamily="Consolas" Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
+                    <TextBlock Grid.Column="3" Text="{Binding Message}" TextWrapping="Wrap"/>
+                </Grid>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding Severity}" Value="Error"><Setter TargetName="SeverityIcon" Property="Foreground" Value="{StaticResource MemoryView.RedBrush}"/></DataTrigger>
+                    <DataTrigger Binding="{Binding Severity}" Value="Warning"><Setter TargetName="SeverityIcon" Property="Foreground" Value="{StaticResource MemoryView.YellowBrush}"/></DataTrigger>
+                    <DataTrigger Binding="{Binding Severity}" Value="Info"><Setter TargetName="SeverityIcon" Property="Foreground" Value="{StaticResource MemoryView.BlueBrush}"/></DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
+        </ResourceDictionary>
+    </Window.Resources>
     <Grid Margin="10"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="170"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <DockPanel Margin="0,0,0,8">
             <TextBlock Text="Auto Assembler" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -15,13 +126,23 @@
             </ComboBox>
         </DockPanel>
         <TextBox x:Name="sourceEditor" Grid.Row="1" AcceptsReturn="True" AcceptsTab="True"
-                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                 Background="{StaticResource Aa.SurfaceBrush}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                  FontFamily="Consolas" FontSize="13" TextWrapping="NoWrap" SpellCheck.IsEnabled="False"/>
-        <Grid Grid.Row="2" Margin="0,8,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <GroupBox Header="Diagnostics" Margin="0,0,4,0"><ListBox x:Name="diagnosticsList" FontFamily="Consolas"/></GroupBox>
-            <GroupBox Grid.Column="1" Header="Execution preview" Margin="4,0,0,0"><TextBox x:Name="previewText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas"/></GroupBox>
+        <Grid Grid.Row="2" Margin="0,8,0,8">
+            <Grid.ColumnDefinitions><ColumnDefinition x:Name="diagnosticsColumn" Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <GroupBox Header="Diagnostics" Margin="0,0,4,0">
+                <ListBox x:Name="diagnosticsList" FontFamily="Consolas" ItemTemplate="{StaticResource Aa.DiagnosticTemplate}"
+                         MouseDoubleClick="DiagnosticsList_MouseDoubleClick">
+                    <ListBox.ContextMenu><ContextMenu><MenuItem Header="Copy diagnostic" Click="CopyDiagnostic_Click"/><MenuItem Header="Copy all diagnostics" Click="CopyAllDiagnostics_Click"/></ContextMenu></ListBox.ContextMenu>
+                </ListBox>
+            </GroupBox>
+            <GridSplitter x:Name="diagnosticsSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource MemoryView.BorderBrush}"/>
+            <GroupBox Grid.Column="2" Header="Execution preview" Margin="4,0,0,0">
+                <TextBox x:Name="previewText" IsReadOnly="True" Background="{StaticResource Aa.SurfaceBrush}" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas"/>
+            </GroupBox>
         </Grid>
-        <DockPanel Grid.Row="3"><TextBlock x:Name="statusText" VerticalAlignment="Center" Foreground="{DynamicResource MemoryView.TextSecondaryBrush}"/>
+        <DockPanel Grid.Row="3"><TextBlock x:Name="statusText" VerticalAlignment="Center" Foreground="{DynamicResource MemoryView.TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Syntax Check" Click="Check_Click" Margin="4,0" Padding="12,5"/>
                 <Button Content="Preview Enable" Click="Preview_Click" Margin="4,0" Padding="12,5"/>

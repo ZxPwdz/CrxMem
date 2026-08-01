@@ -79,6 +79,18 @@ public interface IPatchService
     Task<PatchResult> ReapplyAsync(Guid patchId, CancellationToken cancellationToken = default);
     Task<PatchResult> UndoAsync(CancellationToken cancellationToken = default);
     Task<PatchResult> RedoAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes the given entries from the patch history WITHOUT touching target memory.
+    /// Returns the number of entries removed.
+    /// </summary>
+    int RemoveFromHistory(IReadOnlyCollection<Guid> patchIds);
+
+    /// <summary>
+    /// Clears the entire patch history (including the persisted store) WITHOUT touching
+    /// target memory. Returns the number of entries removed.
+    /// </summary>
+    int ClearHistory();
 }
 
 public sealed class ProcessPatchMemoryAdapter : IPatchMemoryAdapter
@@ -267,6 +279,46 @@ public sealed class PatchService : IPatchService, IDisposable
         catch (OperationCanceledException)
         {
             return Failed(PatchStatus.Cancelled, PatchFailureStage.None, "The patch operation was cancelled.");
+        }
+        finally { _gate.Release(); }
+    }
+
+    public int RemoveFromHistory(IReadOnlyCollection<Guid> patchIds)
+    {
+        ArgumentNullException.ThrowIfNull(patchIds);
+        if (patchIds.Count == 0) return 0;
+        _gate.Wait();
+        try
+        {
+            var ids = new HashSet<Guid>(patchIds);
+            int removed = _history.RemoveAll(item => ids.Contains(item.Id));
+            if (removed > 0)
+            {
+                // Purge redo entries that point at deleted records (Stack<T> enumerates top-first).
+                if (_redo.Count > 0)
+                {
+                    Guid[] kept = _redo.Where(id => !ids.Contains(id)).ToArray();
+                    _redo.Clear();
+                    foreach (Guid id in kept.Reverse())
+                        _redo.Push(id);
+                }
+                SavePersistedHistory();
+            }
+            return removed;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public int ClearHistory()
+    {
+        _gate.Wait();
+        try
+        {
+            int removed = _history.Count;
+            _history.Clear();
+            _redo.Clear();
+            SavePersistedHistory();
+            return removed;
         }
         finally { _gate.Release(); }
     }

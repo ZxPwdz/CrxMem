@@ -104,6 +104,7 @@ namespace CrxMem.MemoryView
             lblStatusSize = new System.Windows.Forms.ToolStripStatusLabel();
             lblStatusModule = new System.Windows.Forms.ToolStripStatusLabel();
             lblStatusInfo = new System.Windows.Forms.ToolStripStatusLabel();
+            lblStatusDriver = new System.Windows.Forms.ToolStripStatusLabel();
 
             // Main Split Container (horizontal: left=disasm+hex, right=registers)
             mainSplitContainer = new System.Windows.Forms.SplitContainer();
@@ -445,7 +446,7 @@ namespace CrxMem.MemoryView
             // statusStrip1
             //
             statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-                lblStatusProtection, lblStatusAllocationBase, lblStatusSize, lblStatusModule, lblStatusInfo
+                lblStatusProtection, lblStatusAllocationBase, lblStatusSize, lblStatusModule, lblStatusInfo, lblStatusDriver
             });
             statusStrip1.Location = new System.Drawing.Point(0, 678);
             statusStrip1.Name = "statusStrip1";
@@ -477,6 +478,12 @@ namespace CrxMem.MemoryView
             lblStatusInfo.Text = "Ready";
             lblStatusInfo.Spring = true;
             lblStatusInfo.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+
+            lblStatusDriver.Name = "lblStatusDriver";
+            lblStatusDriver.Size = new System.Drawing.Size(120, 17);
+            lblStatusDriver.Text = "● Driver: user-mode";
+            lblStatusDriver.ForeColor = System.Drawing.Color.Gray;
+            lblStatusDriver.BorderSides = System.Windows.Forms.ToolStripStatusLabelBorderSides.Left;
 
             //
             // mainSplitContainer (horizontal split: left panels | right registers)
@@ -799,6 +806,7 @@ namespace CrxMem.MemoryView
         private System.Windows.Forms.ToolStripStatusLabel lblStatusSize;
         private System.Windows.Forms.ToolStripStatusLabel lblStatusModule;
         private System.Windows.Forms.ToolStripStatusLabel lblStatusInfo;
+        private System.Windows.Forms.ToolStripStatusLabel lblStatusDriver;
 
         // Split Containers
         private System.Windows.Forms.SplitContainer mainSplitContainer;

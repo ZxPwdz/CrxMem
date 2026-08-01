@@ -103,6 +103,8 @@
             <MenuItem Header="_Bookmarks">
                 <MenuItem Header="_Edit Comment / Bookmark" Click="EditMetadata_Click" InputGestureText=";"/>
                 <MenuItem Header="_Toggle Bookmark" Click="ToggleBookmark_Click" InputGestureText="Ctrl+D"/>
+                <Separator/>
+                <MenuItem Header="Bookmark _Manager" Click="ShowBookmarkManager_Click" InputGestureText="Ctrl+Shift+B"/>
             </MenuItem>
             <MenuItem Header="_Tools">
                 <MenuItem Header="_Auto Assembler…" Click="AutoAssembler_Click"/>
@@ -150,6 +152,10 @@
         <Border Grid.Row="2" Background="{StaticResource MemoryView.HeaderBackgroundBrush}"
                 BorderBrush="{StaticResource MemoryView.BorderBrush}" BorderThickness="0,0,0,1">
             <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="4,0">
+                    <Button x:Name="memoryWorkspaceButton" Content="Memory View" Click="ShowMemoryWorkspace_Click" Padding="12,4"/>
+                    <Button x:Name="bookmarkWorkspaceButton" Content="Bookmark Manager" Click="ShowBookmarkManager_Click" Padding="12,4"/>
+                </StackPanel>
                 <Border Background="{StaticResource MemoryView.SelectionBackgroundBrush}" Padding="11,5" MinWidth="190">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="7" Height="7" Fill="{StaticResource MemoryView.GreenBrush}" Margin="0,0,7,0"/>
@@ -351,15 +357,35 @@
                             </DataGrid>
                         </TabItem>
                         <TabItem Header="Patches">
-                            <DataGrid x:Name="patchHistoryGrid" ItemsSource="{Binding PatchHistory}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick" ContextMenu="{StaticResource PanelGridContextMenu}" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
-                                    <DataGridTextColumn Header="Original" Binding="{Binding Original}" Width="130"/>
-                                    <DataGridTextColumn Header="Patched" Binding="{Binding Patched}" Width="130"/>
-                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="75"/>
-                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="2,2,2,4">
+                                    <Button Content="Restore all &amp; clear" Style="{StaticResource ToolbarButton}" Click="PatchRestoreAllClear_Click"
+                                            ToolTip="Restore original bytes for every ACTIVE patch (newest first), then clear the history. Entries that fail to restore are kept."/>
+                                    <Button Content="Clear history only" Style="{StaticResource ToolbarButton}" Click="PatchClearHistory_Click"
+                                            ToolTip="Remove all patch-history entries WITHOUT modifying target memory. Active patches stay active but lose their restore information."/>
+                                </StackPanel>
+                                <DataGrid x:Name="patchHistoryGrid" ItemsSource="{Binding PatchHistory}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="_Go to Address" Click="PanelGoToAddress_Click"/>
+                                            <MenuItem Header="_Copy Selected Rows" Click="PanelCopyRow_Click" InputGestureText="Ctrl+C"/>
+                                            <Separator/>
+                                            <MenuItem Header="_Remove selected from history" Click="PatchRemoveSelected_Click"
+                                                      ToolTip="Removes the selected history entries. If any are ACTIVE patches you will be asked whether to restore them first."/>
+                                            <Separator/>
+                                            <MenuItem Header="Restore all &amp; _clear history" Click="PatchRestoreAllClear_Click"/>
+                                            <MenuItem Header="C_lear history only (no memory changes)" Click="PatchClearHistory_Click"/>
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="155"/>
+                                        <DataGridTextColumn Header="Original" Binding="{Binding Original}" Width="130"/>
+                                        <DataGridTextColumn Header="Patched" Binding="{Binding Patched}" Width="130"/>
+                                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="75"/>
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
                         </TabItem>
                         <TabItem x:Name="modulesTab" Header="Modules">
                             <DataGrid x:Name="modulesGrid" ItemsSource="{Binding Modules}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="PanelGrid_MouseDoubleClick" ContextMenu="{StaticResource PanelGridContextMenu}" PreviewMouseRightButtonDown="PanelGrid_PreviewMouseRightButtonDown">
@@ -413,6 +439,11 @@
                     </Border>
                 </Grid>
             </Grid>
+
+            <Border x:Name="bookmarkManagerPanel" Grid.Column="0" Panel.ZIndex="20" Visibility="Collapsed"
+                    Background="{StaticResource MemoryView.PanelBackgroundBrush}">
+                <ContentControl x:Name="bookmarkManagerHost"/>
+            </Border>
 
             <GridSplitter x:Name="inspectorSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Style="{StaticResource MemoryView.Splitter}"/>
 
@@ -514,6 +545,13 @@
                         </Style>
                     </ProgressBar.Style>
                 </ProgressBar>
+                <Border x:Name="driverStatusBadge" DockPanel.Dock="Right" VerticalAlignment="Center"
+                        Padding="7,2" Margin="10,0,0,0" CornerRadius="2"
+                        Background="{StaticResource MemoryView.SelectionBackgroundBrush}"
+                        ToolTip="Memory operations use standard Win32 APIs">
+                    <TextBlock x:Name="driverStatusText" Text="● User-mode (driver off)" FontSize="11"
+                               Foreground="{StaticResource MemoryView.TextMutedBrush}"/>
+                </Border>
             </DockPanel>
         </Border>
     </Grid>

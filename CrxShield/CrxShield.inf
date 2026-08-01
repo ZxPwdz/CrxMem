@@ -11,7 +11,7 @@ Class       = System
 ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider    = %ManufacturerName%
 CatalogFile = CrxShield.cat
-DriverVer   = 12/15/2024,1.0.0.0
+DriverVer   = 07/19/2026,1.1.0.0
 PnpLockdown = 1
 
 [DestinationDirs]
@@ -52,13 +52,8 @@ ServiceBinary  = %12%\CrxShield.sys
 
 ;
 ;--- CrxShield_Device Coinstaller installation ------
+; (none - pure WDM driver, no KMDF co-installer required)
 ;
-
-[CrxShield_Device.NT.Wdf]
-KmdfService = CrxShield, CrxShield_wdfsect
-
-[CrxShield_wdfsect]
-KmdfLibraryVersion = 1.15
 
 [Strings]
 SPSVCINST_ASSOCSERVICE = 0x00000002

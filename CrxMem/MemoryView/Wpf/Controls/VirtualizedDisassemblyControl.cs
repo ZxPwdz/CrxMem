@@ -128,14 +128,21 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
                 drawingContext.DrawRectangle(selection, null, new Rect(0, y, ActualWidth, RowHeight));
             drawingContext.DrawLine(borderPen, new Point(0, y + RowHeight), new Point(ActualWidth, y + RowHeight));
 
-            DrawText(drawingContext, row.Marker, 12 - _horizontalOffset, y + 3,
-                ResourceBrush("MemoryView.BookmarkBrush", Colors.DeepSkyBlue), typeface);
+            Brush bookmarkBrush = ParseBrush(row.BookmarkColor) ?? ResourceBrush("MemoryView.BookmarkBrush", Colors.DeepSkyBlue);
+            DrawText(drawingContext, row.Marker, 12 - _horizontalOffset, y + 3, bookmarkBrush, typeface);
             DrawText(drawingContext, row.Address, GutterWidth - _horizontalOffset, y + 3,
                 ResourceBrush("MemoryView.CyanBrush", Colors.Cyan), typeface);
             DrawText(drawingContext, row.Bytes, GutterWidth + AddressWidth - _horizontalOffset, y + 3, secondary, typeface);
             DrawInstruction(drawingContext, row, GutterWidth + AddressWidth + BytesWidth - _horizontalOffset, y + 3, typeface, primary);
             double commentX = Math.Max(690, ActualWidth * 0.68) - _horizontalOffset;
-            DrawText(drawingContext, row.Comment, commentX, y + 3,
+            if (row.BookmarkLabel != null || row.UserComment != null || row.ResolvedSymbol != null)
+            {
+                commentX = DrawTextWidth(drawingContext, row.BookmarkLabel, commentX, y + 3, bookmarkBrush, typeface);
+                commentX = DrawTextWidth(drawingContext, row.UserComment, commentX, y + 3,
+                    ResourceBrush("MemoryView.GreenBrush", Colors.LightGreen), typeface);
+                DrawTextWidth(drawingContext, row.ResolvedSymbol, commentX, y + 3, secondary, typeface);
+            }
+            else DrawText(drawingContext, row.Comment, commentX, y + 3,
                 ResourceBrush("MemoryView.GreenBrush", Colors.LightGreen), typeface);
         }
 
@@ -384,6 +391,21 @@ public sealed class VirtualizedDisassemblyControl : FrameworkElement, IScrollInf
         System.Windows.FlowDirection.LeftToRight, typeface, CodeFontSize, brush, 1);
     private void DrawText(DrawingContext context, string text, double x, double y, Brush brush, Typeface typeface) =>
         context.DrawText(CreateText(text, brush, typeface), new Point(x, y));
+
+    private double DrawTextWidth(DrawingContext context, string? text, double x, double y, Brush brush, Typeface typeface)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return x;
+        FormattedText formatted = CreateText(text + "  ", brush, typeface);
+        context.DrawText(formatted, new Point(x, y));
+        return x + formatted.WidthIncludingTrailingWhitespace;
+    }
+
+    private static Brush? ParseBrush(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        try { return new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(value)); }
+        catch { return null; }
+    }
 
     private void UpdateScrollInfo(Size viewport)
     {

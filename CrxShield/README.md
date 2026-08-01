@@ -4,6 +4,8 @@
 
 A Windows kernel driver for enhanced memory access and security research. Provides kernel-level capabilities for the CrxMem memory scanner.
 
+**Driver type:** Pure WDM (raw `DriverEntry` / `IoCreateDevice`, no WDF/KMDF) — **version 1.1.0**.
+
 ---
 
 ## IMPORTANT: Project Status
@@ -88,13 +90,14 @@ CrxShield is automatically detected by CrxMem when loaded. The driver provides:
 
 ```
 CrxShield/
-├── driver.c                 # Main driver implementation
-├── CrxDriverController.h    # IOCTL definitions
-├── CrxDriverController.cpp  # Controller implementation
+├── driver.c                 # Main driver implementation (WDM, v1.1.0)
 ├── CrxShield.inf            # Driver installation file
-├── CrxShield.vcxproj        # Visual Studio project
-└── CrxShield.sln            # Solution file
+├── CrxShield.vcxproj        # Visual Studio project (DriverType: WDM)
+├── CrxShield.sln            # Solution file
+└── README.md                # This file
 ```
+
+> The user-mode controller (`CrxDriverController.cs`) lives in the [CrxMem](../CrxMem) project, not here.
 
 ---
 

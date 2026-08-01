@@ -131,6 +131,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         _symbolService = symbolService;
         _hexItems = HexRows;
         _uiContext = SynchronizationContext.Current;
+        if (_editableMetadata is IEnumerableMemoryMetadataService annotations)
+            annotations.Changed += AnnotationService_Changed;
         _navigateCommand = new AsyncRelayCommand(NavigateFromExpressionAsync, () => !IsBusy);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(AddressExpression));
         _backCommand = new AsyncRelayCommand(GoBackAsync, () => !IsBusy && _history.CanGoBack);
@@ -581,6 +583,8 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         }
         if (_patchService is IDisposable patchDisposable) patchDisposable.Dispose();
         _symbolService?.Dispose();
+        if (_editableMetadata is IEnumerableMemoryMetadataService annotations)
+            annotations.Changed -= AnnotationService_Changed;
     }
 
     private async Task AttachDebuggerAsync()
@@ -815,6 +819,120 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         RaisePatchCanExecuteChanged();
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Patch-history management (Patches tab: clear / restore & clear)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>Number of history entries whose patch bytes are currently live in the target.</summary>
+    public int AppliedPatchCount => _patchService?.History.Count(item => item.IsApplied) ?? 0;
+
+    /// <summary>
+    /// Clears the entire patch history WITHOUT modifying target memory.
+    /// Active patches stay active; they only lose their restore information.
+    /// </summary>
+    public void ClearPatchHistoryOnly()
+    {
+        if (_patchService == null) return;
+        int removed = _patchService.ClearHistory();
+        RefreshPatchHistory();
+        Status = removed == 0
+            ? "Patch history is already empty."
+            : $"Cleared {removed} patch-history {(removed == 1 ? "entry" : "entries")} — target memory was not modified.";
+        RaisePatchCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Removes the given entries from the patch history WITHOUT modifying target memory.
+    /// </summary>
+    public void RemovePatchHistoryEntries(IReadOnlyCollection<Guid> patchIds)
+    {
+        if (_patchService == null || patchIds.Count == 0) return;
+        int removed = _patchService.RemoveFromHistory(patchIds);
+        RefreshPatchHistory();
+        Status = $"Removed {removed} patch-history {(removed == 1 ? "entry" : "entries")} — target memory was not modified.";
+        RaisePatchCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Restores the original bytes for each given patch. Returns the ids whose restore
+    /// succeeded (so the caller can safely forget them).
+    /// </summary>
+    public async Task<HashSet<Guid>> RestorePatchesAsync(IReadOnlyCollection<Guid> patchIds)
+    {
+        var restored = new HashSet<Guid>();
+        if (_patchService == null || patchIds.Count == 0) return restored;
+        IsBusy = true;
+        int failed = 0;
+        try
+        {
+            foreach (Guid id in patchIds)
+            {
+                PatchResult result = await _patchService.RestoreAsync(id);
+                if (result.Succeeded) restored.Add(id);
+                else failed++;
+            }
+            RefreshPatchHistory();
+            Status = failed == 0
+                ? $"Restored original bytes for {restored.Count} {(restored.Count == 1 ? "patch" : "patches")}."
+                : $"Restored {restored.Count} {(restored.Count == 1 ? "patch" : "patches")}; {failed} restore(s) failed — the target bytes no longer match.";
+            if (restored.Count > 0) await RefreshAsync();
+            return restored;
+        }
+        finally
+        {
+            IsBusy = false;
+            RaisePatchCanExecuteChanged();
+        }
+    }
+
+    /// <summary>
+    /// Restores every active patch (newest first, so overlapping writes unwind in reverse
+    /// order) and then clears the history. Entries whose restore fails stay APPLIED and are
+    /// kept in the list so their restore information is not lost.
+    /// </summary>
+    public async Task RestoreAllPatchesAndClearHistoryAsync()
+    {
+        if (_patchService == null) return;
+        IsBusy = true;
+        try
+        {
+            Guid[] appliedIds = _patchService.History
+                .Where(item => item.IsApplied)
+                .Select(item => item.Id)
+                .Reverse()
+                .ToArray();
+
+            int restored = 0;
+            int failed = 0;
+            foreach (Guid id in appliedIds)
+            {
+                PatchResult result = await _patchService.RestoreAsync(id);
+                if (result.Succeeded) restored++;
+                else failed++;
+            }
+
+            // Forget everything that is no longer live; keep still-applied entries.
+            Guid[] forgetIds = _patchService.History
+                .Where(item => !item.IsApplied)
+                .Select(item => item.Id)
+                .ToArray();
+            int cleared = forgetIds.Length == _patchService.History.Count
+                ? _patchService.ClearHistory()
+                : _patchService.RemoveFromHistory(forgetIds);
+
+            RefreshPatchHistory();
+            Status = failed == 0
+                ? $"Restored {restored} active {(restored == 1 ? "patch" : "patches")} and cleared {cleared} history {(cleared == 1 ? "entry" : "entries")}."
+                : $"Restored {restored} {(restored == 1 ? "patch" : "patches")}; {failed} restore(s) FAILED — those entries were kept. Cleared {cleared} history {(cleared == 1 ? "entry" : "entries")}.";
+            if (restored > 0) await RefreshAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+            RaisePatchCanExecuteChanged();
+        }
+    }
+
     public EditableMemoryMetadata GetSelectedMetadata()
     {
         if (_editableMetadata == null || SelectedInstruction == null)
@@ -838,15 +956,10 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
             return false;
         }
         ModuleDescriptor? module = _moduleService?.FindByAddress(SelectedInstruction.RuntimeAddress);
-        if (module == null)
-        {
-            Status = "Metadata requires a fingerprinted module-relative address.";
-            return false;
-        }
         MetadataMutationResult result = _editableMetadata.SetMetadata(
             MemoryLocation.Create(SelectedInstruction.RuntimeAddress, module), metadata);
         Status = result.Message;
-        if (result.Succeeded) await RefreshAsync();
+        if (result.Succeeded) ApplyAnnotationsToVisibleRows();
         return result.Succeeded;
     }
 
@@ -861,7 +974,7 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         MetadataMutationResult result = _editableMetadata.SetMetadata(
             MemoryLocation.Create(address, module), metadata);
         Status = result.Message;
-        if (result.Succeeded) await RefreshAsync();
+        if (result.Succeeded) ApplyAnnotationsToVisibleRows();
         return result.Succeeded;
     }
 
@@ -1087,6 +1200,55 @@ public sealed class MemoryViewViewModel : INotifyPropertyChanged, IDisposable
         if (selected != null)
             SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selected.RuntimeAddress)
                 ?? SelectedInstruction;
+    }
+
+    private void AnnotationService_Changed(object? sender, MemoryAnnotationsChangedEventArgs e)
+    {
+        void Refresh() => ApplyAnnotationsToVisibleRows();
+        if (_uiContext != null) _uiContext.Post(_ => Refresh(), null);
+        else Refresh();
+    }
+
+    public void ApplyAnnotationsToVisibleRows()
+    {
+        if (_editableMetadata is not IEnumerableMemoryMetadataService annotations) return;
+        ulong? selectedAddress = SelectedInstruction?.RuntimeAddress;
+        for (int index = 0; index < Instructions.Count; index++)
+        {
+            DisassemblyPreviewRow row = Instructions[index];
+            ModuleDescriptor? module = _moduleService?.FindByAddress(row.RuntimeAddress);
+            ResolvedMemoryAnnotation? annotation = annotations.GetAnnotation(MemoryLocation.Create(row.RuntimeAddress, module));
+            bool breakpoint = row.Marker.Contains('●');
+            string marker = breakpoint ? "●" : annotation?.Record.IsBookmarked == true ? "◆" : string.Empty;
+            string? label = annotation?.Record.Label;
+            string? comment = annotation?.Record.Comment;
+            string combined = string.Join("  ", new[] { label, comment, row.ResolvedSymbol }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+            Instructions[index] = row with
+            {
+                Marker = marker,
+                Comment = combined,
+                AnnotationId = annotation?.Id.Value,
+                BookmarkLabel = label,
+                UserComment = comment,
+                BookmarkColor = annotation?.Record.Color
+            };
+        }
+        if (selectedAddress.HasValue)
+            SelectedInstruction = Instructions.FirstOrDefault(row => row.RuntimeAddress == selectedAddress.Value);
+    }
+
+    public Task<AddressExpressionResult> ResolveAddressExpressionAsync(string expression, CancellationToken cancellationToken = default) =>
+        _dataService.ResolveAddressAsync(expression, cancellationToken);
+
+    public MemoryLocation CreateLocation(ulong address) => MemoryLocation.Create(address, _moduleService?.FindByAddress(address));
+    public void ReportStatus(string message) => Status = message;
+
+    public async Task NavigateToAddressAsync(ulong address, string expression)
+    {
+        if (address == 0) return;
+        AddressExpression = expression;
+        await NavigateAsync(address, expression, addToHistory: true);
     }
 
     public async Task NavigateToAddressAsync(ulong address)

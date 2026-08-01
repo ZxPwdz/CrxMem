@@ -144,16 +144,6 @@ namespace CrxMem.Core
                 },
                 new BypassTechnique
                 {
-                    Id = "ob_callback",
-                    Name = "ObCallback Tampering",
-                    Description = "Simulate callback removal",
-                    RiskLevel = BypassRiskLevel.High,
-                    RequiresDriver = true,
-                    RequiresAdmin = true,
-                    Category = "Kernel-mode"
-                },
-                new BypassTechnique
-                {
                     Id = "mm_copy_virtual",
                     Name = "MmCopyVirtualMemory",
                     Description = "Kernel-mode memory access",
@@ -254,7 +244,6 @@ namespace CrxMem.Core
                     "nt_read_virtual" => TestNtReadVirtualMemory(),
                     "nt_write_virtual" => TestNtWriteVirtualMemory(),
                     "unsigned_driver" => TestUnsignedDriverLoad(),
-                    "ob_callback" => TestObCallbackTampering(),
                     "mm_copy_virtual" => TestMmCopyVirtualMemory(),
                     "hypervisor" => TestHypervisorDetection(),
                     "hw_breakpoints" => TestHardwareBreakpoints(),
@@ -409,25 +398,6 @@ namespace CrxMem.Core
                     Details = ex.Message
                 };
             }
-        }
-
-        private BypassTestResult TestObCallbackTampering()
-        {
-            // Requires kernel driver - stub implementation
-            if (DriverManager == null || !DriverManager.IsDriverLoaded)
-            {
-                return new BypassTestResult
-                {
-                    Status = DetectionStatus.Error,
-                    Details = "Kernel driver not loaded - required for ObCallback test"
-                };
-            }
-
-            return new BypassTestResult
-            {
-                Status = DetectionStatus.NotRun,
-                Details = "ObCallback tampering test not implemented - requires driver IOCTL"
-            };
         }
 
         private BypassTestResult TestMmCopyVirtualMemory()

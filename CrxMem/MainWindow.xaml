@@ -1,709 +1,235 @@
 <Window x:Class="CrxMem.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms"
-        xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
-        Title="CrxMem"
-        Width="850" Height="680"
-        MinWidth="700" MinHeight="500"
-        WindowStyle="None"
-        ResizeMode="CanResize"
-        AllowsTransparency="True"
-        Background="Transparent"
-        WindowStartupLocation="CenterScreen">
-    
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="CrxMem" Width="1152" Height="768" MinWidth="960" MinHeight="640" FontSize="12"
+        WindowStyle="None" ResizeMode="CanResize" AllowsTransparency="False"
+        Background="{DynamicResource Main.Window}" Foreground="{DynamicResource Main.Text}"
+        WindowStartupLocation="CenterScreen" UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="42" ResizeBorderThickness="7" CornerRadius="10" GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/Colors.xaml"/>
-                <ResourceDictionary Source="Themes/Styles.xaml"/>
+                <ResourceDictionary Source="Themes/MainWindow.Reference.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
-    
-    <!-- Main Container with Shadow -->
-    <Border Background="{StaticResource BackgroundDarkBrush}" 
-            CornerRadius="8" 
-            Margin="8"
-            BorderBrush="{StaticResource BorderDefaultBrush}"
-            BorderThickness="1">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.4" Color="Black"/>
-        </Border.Effect>
-        
-        <Grid>
+
+    <Border Background="{StaticResource Main.Window}" BorderBrush="#1F70B8" BorderThickness="1" CornerRadius="10">
+        <Grid ClipToBounds="True">
             <Grid.RowDefinitions>
-                <RowDefinition Height="32"/>      <!-- Custom Title Bar -->
-                <RowDefinition Height="Auto"/>    <!-- Menu Bar -->
-                <RowDefinition Height="Auto"/>    <!-- Toolbar -->
-                <RowDefinition Height="Auto"/>    <!-- Progress Bar -->
-                <RowDefinition Height="*"/>       <!-- Main Content -->
-                <RowDefinition Height="Auto"/>    <!-- Status Bar -->
+                <RowDefinition Height="42"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="2"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="26"/>
             </Grid.RowDefinitions>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- CUSTOM TITLE BAR (includes process name) -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <Border Grid.Row="0" 
-                    Background="{StaticResource BackgroundCardBrush}"
-                    CornerRadius="8,8,0,0">
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="#07111D" BorderBrush="{StaticResource Main.BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="10,10,0,0">
                 <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- Logo & Title -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0">
-                        <Image x:Name="imgLogo" Width="16" Height="16" Margin="0,0,6,0"/>
-                        <TextBlock x:Name="txtWindowTitle" 
-                                   Text="CrxMem v1.1" 
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"
-                                   FontWeight="SemiBold"
-                                   FontSize="12"/>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Grid Width="27" Height="27" Margin="0,0,10,0">
+                            <Path Data="M 15,1 L 27,7 L 25,22 L 15,29 L 5,22 L 3,7 Z" Stroke="#5EB0FF" StrokeThickness="1.2">
+                                <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#3296FF" Offset="0"/><GradientStop Color="#1557B6" Offset="1"/></LinearGradientBrush></Path.Fill>
+                            </Path>
+                            <Path Data="M 20,9 C 18.6,7.7 17,7 15,7 C 10.6,7 8,10.2 8,15 C 8,19.8 10.6,23 15,23 C 17,23 18.7,22.3 20.2,20.8" Stroke="White" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
+                            <Image x:Name="imgLogo" Width="28" Height="28"/>
+                        </Grid>
+                        <TextBlock x:Name="txtWindowTitle" Text="CrxMem" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource Main.Text}"/>
                     </StackPanel>
-                    
-                    <!-- Separator -->
-                    <TextBlock Grid.Column="1" Text="—" 
-                               Foreground="{StaticResource TextMutedBrush}"
-                               VerticalAlignment="Center"
-                               Margin="6,0"/>
-                    
-                    <!-- Process Name (informational, not clickable) -->
-                    <TextBlock x:Name="txtProcessName" Grid.Column="2"
-                               Text="No Process Selected"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="11"
-                               VerticalAlignment="Center"/>
-                    
-                    <!-- Window Controls -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal">
-                        <Button Content="─" Click="Minimize_Click" 
-                                Style="{StaticResource IconButtonStyle}"
-                                Width="40" Height="32" FontSize="12"/>
-                        <Button x:Name="btnMaximize" Content="□" Click="Maximize_Click" 
-                                Style="{StaticResource IconButtonStyle}"
-                                Width="40" Height="32" FontSize="10"/>
-                        <Button x:Name="btnClose" Content="✕" Click="Close_Click" 
-                                Style="{StaticResource IconButtonStyle}"
-                                Width="40" Height="32" FontSize="10"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="processStatusDot" Width="9" Height="9" Stroke="{StaticResource Main.TextMuted}" StrokeThickness="1.6" Margin="0,0,7,0"/>
+                        <TextBlock x:Name="txtProcessName" Text="No process selected" Foreground="{StaticResource Main.TextMuted}" FontSize="12" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Click="Minimize_Click" Style="{StaticResource Main.WindowButton}" ToolTip="Minimize">
+                            <Path Data="M 2,8 L 14,8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"/>
+                        </Button>
+                        <Button x:Name="btnMaximize" Click="Maximize_Click" Style="{StaticResource Main.WindowButton}" ToolTip="Maximize or restore">
+                            <Path Data="M 2,2 L 14,2 L 14,14 L 2,14 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" Fill="Transparent"/>
+                        </Button>
+                        <Button x:Name="btnClose" Click="Close_Click" Style="{StaticResource Main.CloseButton}" ToolTip="Close">
+                            <Path Data="M 2,2 L 14,14 M 14,2 L 2,14" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"/>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- MENU BAR -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <Menu Grid.Row="1"
-                  Background="{StaticResource BackgroundCardBrush}"
-                  Foreground="{StaticResource TextPrimaryBrush}"
-                  Padding="6,2">
-                <Menu.Resources>
-                    <!-- Override the IconBar background color that causes white lines -->
-                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#1F2937"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#1F2937"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#1F2937"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="#1F2937"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#1F2937"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuHighlightBrushKey}" Color="#374151"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#E6EDF3"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#374151"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFF"/>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#1F2937"/>
 
-                    <!-- Custom ItemsPanel template to remove the icon gutter -->
-                    <ItemsPanelTemplate x:Key="MenuItemsPanelTemplate">
-                        <StackPanel Background="#1F2937"/>
-                    </ItemsPanelTemplate>
-
-                    <!-- MenuItem style with light text color -->
-                    <Style TargetType="MenuItem">
-                        <Setter Property="Background" Value="#1F2937"/>
-                        <Setter Property="Foreground" Value="#E6EDF3"/>
-                        <Setter Property="BorderBrush" Value="Transparent"/>
-                        <Setter Property="BorderThickness" Value="0"/>
-                        <Setter Property="Padding" Value="8,4"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter Property="Background" Value="#374151"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-
-                    <!-- Full Separator template to eliminate white line -->
-                    <Style TargetType="Separator">
-                        <Setter Property="Height" Value="1"/>
-                        <Setter Property="Margin" Value="4,4"/>
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="Separator">
-                                    <Border Height="1" Background="#374151" Margin="0"/>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </Menu.Resources>
+            <!-- Menu -->
+            <Menu Grid.Row="1" Padding="14,0" BorderBrush="{StaticResource Main.BorderSoft}" BorderThickness="0,0,0,1" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <MenuItem Header="_File">
-                    <MenuItem Header="_Open Process" Click="OpenProcess_Click"/>
-                    <Separator/>
+                    <MenuItem Header="_Open Process" Click="OpenProcess_Click"/><Separator/>
                     <MenuItem Header="_Save Table" Click="SaveTable_Click" InputGestureText="Ctrl+S"/>
-                    <MenuItem Header="_Load Table" Click="LoadTable_Click" InputGestureText="Ctrl+O"/>
-                    <Separator/>
+                    <MenuItem Header="_Load Table" Click="LoadTable_Click" InputGestureText="Ctrl+O"/><Separator/>
                     <MenuItem Header="E_xit" Click="Exit_Click"/>
                 </MenuItem>
-                <MenuItem Header="_Edit">
-                    <MenuItem x:Name="menuLiveUpdates" Header="_Live Updates"
-                              IsCheckable="True" IsChecked="True"
-                              Click="LiveUpdates_Click"/>
-                </MenuItem>
+                <MenuItem Header="_Edit"><MenuItem x:Name="menuLiveUpdates" Header="_Live Updates" IsCheckable="True" IsChecked="True" Click="LiveUpdates_Click"/></MenuItem>
                 <MenuItem Header="_Tools">
-                    <MenuItem Header="Memory View (_WPF)" Click="MemoryViewWpfPreview_Click"
-                              ToolTip="Open the redesigned WPF Memory View"/>
-                    <MenuItem Header="Memory Viewer (_Legacy)" Click="LegacyMemoryView_Click"
-                              ToolTip="Open the previous WinForms/GDI+ Memory Viewer"/>
+                    <MenuItem Header="Memory View (_WPF)" Click="MemoryViewWpfPreview_Click" ToolTip="Open the redesigned WPF Memory View"/>
+                    <MenuItem Header="Memory Viewer (_Legacy)" Click="LegacyMemoryView_Click" ToolTip="Open the previous WinForms/GDI+ Memory Viewer"/>
                     <Separator/>
                     <MenuItem Header="_Lua Engine" Click="LuaEngineWpf_Click" InputGestureText="Ctrl+L"/>
                     <MenuItem Header="_PE Analysis" Click="PEAnalysis_Click"/>
+                    <MenuItem Header="_Watchdog Hunter" Click="WatchdogHunter_Click" ToolTip="Find the hidden integrity-check thread by suspending suspects in bisection rounds"/>
                     <Separator/>
                     <MenuItem Header="E_xperimental" ToolTip="Prototype features for isolated research environments">
                         <MenuItem Header="Lua Engine (_Legacy WinForms)" Click="LuaEngine_Click"/>
-                        <MenuItem Header="L_UA Monitor (incomplete)" Click="LuaMonitor_Click"/>
-                        <Separator/>
+                        <MenuItem Header="L_UA Monitor (incomplete)" Click="LuaMonitor_Click"/><Separator/>
                         <MenuItem Header="_Driver Research Lab" Click="ACBypassLab_Click"/>
                         <MenuItem Header="_DLL Injection Test" Click="DllInjectionTest_Click"/>
                     </MenuItem>
                 </MenuItem>
                 <MenuItem Header="_Settings" Click="Settings_Click"/>
-                <MenuItem Header="_Help">
-                    <MenuItem Header="_About" Click="About_Click"/>
-                </MenuItem>
+                <MenuItem Header="_Help"><MenuItem Header="_About" Click="About_Click"/></MenuItem>
             </Menu>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- TOOLBAR -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <Border Grid.Row="2" 
-                    Background="{StaticResource BackgroundCardBrush}"
-                    Padding="6,3"
-                    BorderBrush="{StaticResource BorderMutedBrush}"
-                    BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="btnOpenProcess" Click="OpenProcess_Click"
-                            ToolTip="Open Process"
-                            Style="{StaticResource IconButtonStyle}"
-                            Margin="0,0,2,0">
-                        <TextBlock Text="📂" FontSize="14"/>
+
+            <!-- Toolbar -->
+            <Border Grid.Row="2" Background="#091725" BorderBrush="{StaticResource Main.BorderSoft}" BorderThickness="0,0,0,1" Padding="14,5">
+                <StackPanel Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="btnOpenProcess" Click="OpenProcess_Click" ToolTip="Open Process" Style="{StaticResource Main.ToolbarButton}">
+                        <Viewbox Width="20" Height="20"><Path Data="M 1,6 L 1,17 L 19,17 L 21,5 L 9,5 L 7,2 L 1,2 Z" Stroke="{StaticResource Main.Text}" StrokeThickness="1.5" Fill="Transparent" StrokeLineJoin="Round"/></Viewbox>
                     </Button>
-                    <Button x:Name="btnLoadTable" Click="LoadTable_Click"
-                            ToolTip="Load Table (Ctrl+O)"
-                            Style="{StaticResource IconButtonStyle}"
-                            Margin="0,0,2,0">
-                        <TextBlock Text="📄" FontSize="14"/>
+                    <Button x:Name="btnLoadTable" Click="LoadTable_Click" ToolTip="Load Table (Ctrl+O)" Style="{StaticResource Main.ToolbarButton}">
+                        <Viewbox Width="19" Height="19"><Path Data="M 3,1 L 14,1 L 19,6 L 19,21 L 3,21 Z M 6,9 L 16,9 M 6,13 L 16,13 M 6,17 L 13,17" Stroke="{StaticResource Main.Text}" StrokeThickness="1.4" Fill="Transparent" StrokeLineJoin="Round"/></Viewbox>
                     </Button>
-                    <Button x:Name="btnSaveTable" Click="SaveTable_Click"
-                            ToolTip="Save Table (Ctrl+S)"
-                            Style="{StaticResource IconButtonStyle}">
-                        <TextBlock Text="💾" FontSize="14"/>
+                    <Button x:Name="btnSaveTable" Click="SaveTable_Click" ToolTip="Save Table (Ctrl+S)" Style="{StaticResource Main.ToolbarButton}">
+                        <Viewbox Width="19" Height="19"><Path Data="M 2,2 L 18,2 L 21,5 L 21,21 L 2,21 Z M 6,2 L 6,8 L 16,8 L 16,2 M 6,14 L 17,14 L 17,21 L 6,21 Z" Stroke="{StaticResource Main.Text}" StrokeThickness="1.4" Fill="Transparent" StrokeLineJoin="Round"/></Viewbox>
                     </Button>
                 </StackPanel>
             </Border>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- PROGRESS BAR -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <ProgressBar x:Name="progressBar" Grid.Row="3"
-                         Style="{StaticResource ModernProgressBarStyle}"
-                         Visibility="Collapsed"
-                         Height="3"/>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- MAIN CONTENT AREA -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <Grid Grid.Row="4" Margin="8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" MinHeight="150"/>
-                    <RowDefinition Height="6"/>
-                    <RowDefinition Height="150" MinHeight="80"/>
-                </Grid.RowDefinitions>
-                
-                <!-- TOP SECTION: Scan Results + Controls -->
+
+            <ProgressBar x:Name="progressBar" Grid.Row="3" Visibility="Collapsed" Height="3" Foreground="{StaticResource Main.Accent}" Background="{StaticResource Main.Window}"/>
+
+            <!-- Scanner workspace -->
+            <Grid Grid.Row="4" Margin="10">
+                <Grid.RowDefinitions><RowDefinition Height="2.25*" MinHeight="310"/><RowDefinition Height="6"/><RowDefinition x:Name="addressListRow" Height="1*" MinHeight="145"/></Grid.RowDefinitions>
                 <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="180"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="300"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- SCAN RESULTS PANEL -->
-                    <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="5*" MinWidth="500"/><ColumnDefinition Width="10"/><ColumnDefinition Width="3*" MinWidth="330"/></Grid.ColumnDefinitions>
+
+                    <!-- Scan results -->
+                    <Border Grid.Column="0" Style="{StaticResource Main.CardStyle}">
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            
-                            <!-- Header -->
-                            <Grid Grid.Row="0">
-                                <TextBlock Style="{StaticResource SectionHeaderStyle}"
-                                           Text="SCAN RESULTS"/>
-                                <TextBlock x:Name="txtFoundCount" 
-                                           Text="Found: 0"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           FontSize="10"
-                                           HorizontalAlignment="Right"/>
+                            <Grid.RowDefinitions><RowDefinition Height="30"/><RowDefinition Height="*"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="19" Height="19" Margin="2,0,8,0"><Grid><Ellipse Stroke="{StaticResource Main.Accent}" StrokeThickness="1.6"/><Ellipse Width="8" Height="8" Stroke="{StaticResource Main.Accent}" StrokeThickness="1.6"/><Path Data="M 11,0 L 11,5 M 11,17 L 11,22 M 0,11 L 5,11 M 17,11 L 22,11" Stroke="{StaticResource Main.Accent}" StrokeThickness="1.5"/></Grid></Viewbox>
+                                    <TextBlock Text="SCAN RESULTS" Style="{StaticResource Main.SectionTitle}"/>
+                                </StackPanel>
+                                <TextBlock x:Name="txtFoundCount" Text="Found: 0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource Main.TextSecondary}"/>
                             </Grid>
-                            
-                            <!-- Results ListView (WPF Native) -->
-                            <Border Grid.Row="1"
-                                    BorderBrush="{StaticResource BorderDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Margin="0,4,0,0">
-                                <ListView x:Name="lvFoundAddressesWpf"
-                                          Background="#161B22"
-                                          Foreground="#E6EDF3"
-                                          BorderThickness="0"
-                                          SelectionMode="Extended"
-                                          MouseDoubleClick="LvFoundAddresses_DoubleClick">
-                                    <ListView.Resources>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="Background" Value="Transparent"/>
-                                            <Setter Property="Foreground" Value="#E6EDF3"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#2D3748"/>
-                                                    <Setter Property="Foreground" Value="#FFFFFF"/>
-                                                </Trigger>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#1F2937"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ListView.Resources>
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="Address" Width="150">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Address}"
-                                                                 Foreground="{Binding Foreground}"
-                                                                 FontFamily="Cascadia Code" FontSize="12"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Header="Value" Width="150">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Value}"
-                                                                 FontFamily="Cascadia Code" FontSize="12"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Header="Previous" Width="150">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Previous}"
-                                                                 FontFamily="Cascadia Code" FontSize="12"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
-                                    <ListView.ContextMenu>
-                                        <ContextMenu Background="#1F2937" Foreground="#E6EDF3">
-                                            <ContextMenu.Resources>
-                                                <Style TargetType="MenuItem">
-                                                    <Setter Property="Background" Value="Transparent"/>
-                                                    <Setter Property="Foreground" Value="#E6EDF3"/>
-                                                    <Setter Property="BorderThickness" Value="0"/>
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsHighlighted" Value="True">
-                                                            <Setter Property="Background" Value="#374151"/>
-                                                            <Setter Property="Foreground" Value="#FFFFFF"/>
-                                                            <Setter Property="BorderBrush" Value="Transparent"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsEnabled" Value="False">
-                                                            <Setter Property="Foreground" Value="#6B7280"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                                <Style TargetType="Separator">
-                                                    <Setter Property="Background" Value="#374151"/>
-                                                    <Setter Property="Margin" Value="0,2"/>
-                                                </Style>
-                                            </ContextMenu.Resources>
-                                            <MenuItem Header="Copy Address" Click="CopyFoundAddress_Click"/>
-                                            <MenuItem Header="Browse this memory region" Click="BrowseMemoryRegion_Click"/>
-                                        </ContextMenu>
-                                    </ListView.ContextMenu>
-                                </ListView>
-                            </Border>
-                            
-                            <!-- Footer Buttons -->
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
-                                <Button Content="🔍 Memory View" Click="MemoryView_Click"
-                                        Style="{StaticResource ModernButtonStyle}"
-                                        Margin="0,0,4,0"/>
-                                <Button x:Name="btnAddToList" Content="↓ Add to List"
-                                        Click="AddToList_Click"
-                                        Style="{StaticResource ModernButtonStyle}"/>
+                            <DataGrid x:Name="lvFoundAddressesWpf" Grid.Row="1" Style="{StaticResource Main.DataGrid}" AutoGenerateColumns="False" Margin="0,3,0,0"
+                                      MouseDoubleClick="LvFoundAddresses_DoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="Address" Width="25*"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Address}" Foreground="{Binding Foreground}"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="45*"/>
+                                    <DataGridTextColumn Header="Previous" Binding="{Binding Previous}" Width="30*"/>
+                                </DataGrid.Columns>
+                                <DataGrid.ContextMenu><ContextMenu><MenuItem Header="Copy Address" Click="CopyFoundAddress_Click"/><MenuItem Header="Browse this memory region" Click="BrowseMemoryRegion_Click"/></ContextMenu></DataGrid.ContextMenu>
+                            </DataGrid>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,7,0,0">
+                                <Button Click="MemoryView_Click" Style="{StaticResource Main.Button}" Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal"><Viewbox Width="15" Height="15" Margin="0,0,7,0"><Grid><Ellipse Stroke="{StaticResource Main.TextSecondary}" StrokeThickness="1.6"/><Path Data="M 13,13 L 20,20" Stroke="{StaticResource Main.TextSecondary}" StrokeThickness="2"/></Grid></Viewbox><TextBlock Text="Memory View"/></StackPanel>
+                                </Button>
+                                <Button x:Name="btnAddToList" Click="AddToList_Click" Style="{StaticResource Main.Button}">
+                                    <StackPanel Orientation="Horizontal"><Path Data="M 1,3 L 3,5 L 6,1 M 9,3 L 20,3 M 1,10 L 3,12 L 6,8 M 9,10 L 20,10 M 1,17 L 3,19 L 6,15 M 9,17 L 20,17" Stroke="{StaticResource Main.TextSecondary}" StrokeThickness="1.4" Margin="0,0,9,0"/><TextBlock Text="Add to List"/></StackPanel>
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>
-                    
-                    <!-- SCAN CONTROLS PANEL -->
-                    <Border Grid.Column="2" Style="{StaticResource CardStyle}">
-                        <StackPanel>
-                            <!-- Scan Buttons -->
-                            <WrapPanel Margin="0,0,0,6">
-                                <Button x:Name="btnFirstScan" Content="First Scan" 
-                                        Click="FirstScan_Click"
-                                        Style="{StaticResource ModernButtonStyle}"
-                                        IsEnabled="False"
-                                        Margin="0,0,4,4"/>
-                                <Button x:Name="btnNextScan" Content="Next Scan" 
-                                        Click="NextScan_Click"
-                                        Style="{StaticResource ModernButtonStyle}"
-                                        IsEnabled="False"
-                                        Margin="0,0,4,4"/>
-                                <Button x:Name="btnNewScan" Content="New Scan" 
-                                        Click="NewScan_Click"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        Margin="0,0,4,4"/>
-                                <Button x:Name="btnCancelScan" Content="Cancel" 
-                                        Click="CancelScan_Click"
-                                        Style="{StaticResource ModernButtonStyle}"
-                                        IsEnabled="False"
-                                        Margin="0,0,4,4"/>
-                                <Button x:Name="btnUndoScan" Content="Undo" 
-                                        Click="UndoScan_Click"
-                                        Style="{StaticResource ModernButtonStyle}"
-                                        IsEnabled="False"/>
-                            </WrapPanel>
-                            
-                            <!-- Value Input -->
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="txtValue"
-                                         Style="{StaticResource ModernTextBoxStyle}"/>
-                                <CheckBox x:Name="chkHex" Content="Hex"
-                                          Grid.Column="1"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          VerticalAlignment="Center"
-                                          FontSize="10"
-                                          Margin="6,0,0,0"/>
-                            </Grid>
 
-                            <!-- Second Value Input (for "Between" scans) -->
-                            <TextBox x:Name="txtValue2"
-                                     Style="{StaticResource ModernTextBoxStyle}"
-                                     Margin="0,0,0,4"
-                                     Visibility="Collapsed"/>
-                            
-                            <!-- Scan Type & Value Type side by side -->
-                            <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="4"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="cmbScanType" Grid.Column="0"
-                                          Style="{StaticResource ModernComboBoxStyle}"
-                                          SelectionChanged="CmbScanType_SelectionChanged">
-                                    <ComboBoxItem Content="Exact value" IsSelected="True"/>
-                                    <ComboBoxItem Content="Increased value"/>
-                                    <ComboBoxItem Content="Increased value by ..."/>
-                                    <ComboBoxItem Content="Decreased value"/>
-                                    <ComboBoxItem Content="Decreased value by ..."/>
-                                    <ComboBoxItem Content="Value between"/>
-                                    <ComboBoxItem Content="Changed value"/>
-                                    <ComboBoxItem Content="Unchanged value"/>
-                                    <ComboBoxItem Content="Unknown initial value"/>
-                                </ComboBox>
-                                <ComboBox x:Name="cmbValueType" Grid.Column="2"
-                                          Style="{StaticResource ModernComboBoxStyle}">
-                                    <ComboBoxItem Content="Byte"/>
-                                    <ComboBoxItem Content="2 Bytes"/>
-                                    <ComboBoxItem Content="4 Bytes" IsSelected="True"/>
-                                    <ComboBoxItem Content="8 Bytes"/>
-                                    <ComboBoxItem Content="Float"/>
-                                    <ComboBoxItem Content="Double"/>
-                                    <ComboBoxItem Content="String"/>
-                                    <ComboBoxItem Content="AOB"/>
-                                </ComboBox>
-                            </Grid>
-                            
-                            <!-- Checkboxes in compact grid -->
-                            <!-- Writable/CopyOnWrite/Executable use 3-state like CheatEngine:
-                                 Unchecked = Exclude (don't scan this type)
-                                 Checked = Include (ONLY scan this type)
-                                 Indeterminate = Don't care (scan both) -->
-                            <WrapPanel Margin="0,0,0,4">
-                                <CheckBox x:Name="chkWritable" Content="Writable" IsChecked="True"
-                                          IsThreeState="True"
-                                          ToolTip="Checked: Only scan writable&#x0a;Unchecked: Only scan read-only&#x0a;Indeterminate: Scan both"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          FontSize="10" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="chkFastScan" Content="Fast Scan" IsChecked="True"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          FontSize="10" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="chkCopyOnWrite" Content="COW"
-                                          IsThreeState="True" IsChecked="{x:Null}"
-                                          ToolTip="Checked: Only scan copy-on-write&#x0a;Unchecked: Exclude copy-on-write&#x0a;Indeterminate: Scan both"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          FontSize="10" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="chkExecutable" Content="Exec"
-                                          IsThreeState="True" IsChecked="{x:Null}"
-                                          ToolTip="Checked: Only scan executable&#x0a;Unchecked: Exclude executable&#x0a;Indeterminate: Scan both"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          FontSize="10" Margin="0,0,8,0"/>
-                                <CheckBox x:Name="chkActiveMemoryOnly" Content="Active Only"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
-                                          FontSize="10"/>
-                            </WrapPanel>
-                            
-                            <!-- Module Selection -->
-                            <ComboBox x:Name="cmbModule"
-                                      Style="{StaticResource ModernComboBoxStyle}"
-                                      SelectionChanged="CmbModule_SelectionChanged"
-                                      Margin="0,0,0,4"/>
-                            
-                            <!-- Address Range (collapsed by default, expandable) -->
-                            <Expander Header="Address Range" IsExpanded="False" Margin="0,0,0,4"
-                                      Foreground="{StaticResource TextSecondaryBrush}" FontSize="10">
-                                <StackPanel Margin="0,4,0,0">
-                                    <Grid Margin="0,0,0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="32"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Start" FontSize="10" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBox x:Name="txtStartAddress" Grid.Column="1"
-                                                 Text="0000000000000000"
-                                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                    </Grid>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="32"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Stop" FontSize="10" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBox x:Name="txtStopAddress" Grid.Column="1"
-                                                 Text="7FFFFFFFFFFFFFFF"
-                                                 Style="{StaticResource ModernTextBoxStyle}"/>
-                                    </Grid>
+                    <!-- Scan controls -->
+                    <Border Grid.Column="2" Style="{StaticResource Main.CardStyle}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="7"/><ColumnDefinition Width="*"/><ColumnDefinition Width="7"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Button x:Name="btnFirstScan" Content="First Scan" Click="FirstScan_Click" Style="{StaticResource Main.Button}" IsEnabled="False"/>
+                                    <Button x:Name="btnNextScan" Grid.Column="2" Content="Next Scan" Click="NextScan_Click" Style="{StaticResource Main.Button}" IsEnabled="False"/>
+                                    <Button x:Name="btnNewScan" Grid.Column="4" Content="New Scan" Click="NewScan_Click" Style="{StaticResource Main.PrimaryButton}"/>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Button x:Name="btnCancelScan" Content="Cancel" Click="CancelScan_Click" Style="{StaticResource Main.Button}" IsEnabled="False" Margin="0,0,7,0"/>
+                                    <Button x:Name="btnUndoScan" Content="Undo" Click="UndoScan_Click" Style="{StaticResource Main.Button}" IsEnabled="False"/>
                                 </StackPanel>
-                            </Expander>
-                            
-                            <!-- Add Address Manually Button -->
-                            <Button Content="➕ Add Address Manually"
-                                    Click="AddAddressManually_Click"
-                                    Style="{StaticResource ModernButtonStyle}"
-                                    HorizontalAlignment="Stretch"
-                                    Margin="0,4,0,0"/>
-                        </StackPanel>
+                                <Grid Margin="0,0,0,9"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="64"/></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="txtValue"/>
+                                    <CheckBox x:Name="chkHex" Grid.Column="1" Content="Hex" Margin="10,0,0,0"/>
+                                </Grid>
+                                <TextBox x:Name="txtValue2" Visibility="Collapsed" Margin="0,0,0,9"/>
+                                <Grid Margin="0,0,0,9"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="cmbScanType" SelectionChanged="CmbScanType_SelectionChanged">
+                                        <ComboBoxItem Content="Exact value" IsSelected="True"/><ComboBoxItem Content="Increased value"/><ComboBoxItem Content="Increased value by ..."/><ComboBoxItem Content="Decreased value"/><ComboBoxItem Content="Decreased value by ..."/><ComboBoxItem Content="Value between"/><ComboBoxItem Content="Changed value"/><ComboBoxItem Content="Unchanged value"/><ComboBoxItem Content="Unknown initial value"/>
+                                    </ComboBox>
+                                    <ComboBox x:Name="cmbValueType" Grid.Column="2"><ComboBoxItem Content="Byte"/><ComboBoxItem Content="2 Bytes"/><ComboBoxItem Content="4 Bytes" IsSelected="True"/><ComboBoxItem Content="8 Bytes"/><ComboBoxItem Content="Float"/><ComboBoxItem Content="Double"/><ComboBoxItem Content="String"/><ComboBoxItem Content="AOB"/></ComboBox>
+                                </Grid>
+                                <WrapPanel Margin="0,0,0,8">
+                                    <CheckBox x:Name="chkWritable" Content="Writable" IsChecked="True" IsThreeState="True" Margin="0,0,12,6" ToolTip="Checked: only writable; unchecked: only read-only; indeterminate: both"/>
+                                    <CheckBox x:Name="chkFastScan" Content="Fast Scan" IsChecked="True" Margin="0,0,12,6"/>
+                                    <CheckBox x:Name="chkCopyOnWrite" Content="COW" IsThreeState="True" IsChecked="{x:Null}" Margin="0,0,12,6" ToolTip="Checked: only copy-on-write; unchecked: exclude; indeterminate: both"/>
+                                    <CheckBox x:Name="chkExecutable" Content="Exec" IsThreeState="True" IsChecked="{x:Null}" Margin="0,0,12,6" ToolTip="Checked: only executable; unchecked: exclude; indeterminate: both"/>
+                                    <CheckBox x:Name="chkActiveMemoryOnly" Content="Active Only" Margin="0,0,12,6"/>
+                                </WrapPanel>
+                                <ComboBox x:Name="cmbModule" SelectionChanged="CmbModule_SelectionChanged" Margin="0,0,0,9"/>
+                                <Expander Header="Address Range" IsExpanded="False" Margin="0,0,0,8">
+                                    <StackPanel Margin="4,7,0,0">
+                                        <Grid Margin="0,0,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="44"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="Start" Foreground="{StaticResource Main.TextSecondary}" VerticalAlignment="Center"/><TextBox x:Name="txtStartAddress" Grid.Column="1" Text="0000000000000000"/></Grid>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="44"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="Stop" Foreground="{StaticResource Main.TextSecondary}" VerticalAlignment="Center"/><TextBox x:Name="txtStopAddress" Grid.Column="1" Text="7FFFFFFFFFFFFFFF"/></Grid>
+                                    </StackPanel>
+                                </Expander>
+                                <Button Click="AddAddressManually_Click" Style="{StaticResource Main.Button}" HorizontalAlignment="Stretch" Margin="0,2,0,0" Foreground="{StaticResource Main.AccentHover}">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><Path Data="M 10,1 L 10,19 M 1,10 L 19,10" Stroke="{StaticResource Main.AccentHover}" StrokeThickness="1.7" Margin="0,0,10,0"/><TextBlock Text="Add Address Manually"/></StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
-                
-                <!-- Splitter -->
-                <GridSplitter Grid.Row="1" 
-                              Height="6" 
-                              HorizontalAlignment="Stretch"
-                              Background="Transparent"
-                              Cursor="SizeNS"/>
-                
-                <!-- BOTTOM SECTION: Address List -->
-                <Border Grid.Row="2" Style="{StaticResource CardStyle}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        
-                        <TextBlock Grid.Row="0" 
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   Text="ADDRESS LIST"/>
-                        
-                        <!-- Address ListView (WPF Native) -->
-                        <Border Grid.Row="1"
-                                BorderBrush="{StaticResource BorderDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="4"
-                                Margin="0,4,0,0">
-                            <ListView x:Name="lvAddressListWpf"
-                                      Background="#161B22"
-                                      Foreground="#E6EDF3"
-                                      BorderThickness="0"
-                                      SelectionMode="Extended"
-                                      MouseDoubleClick="LvAddressList_DoubleClick">
-                                <ListView.Resources>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="Background" Value="Transparent"/>
-                                        <Setter Property="Foreground" Value="#E6EDF3"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter Property="Background" Value="#2D3748"/>
-                                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                                            </Trigger>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#1F2937"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ListView.Resources>
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header=" " Width="50">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <CheckBox IsChecked="{Binding Frozen}"
-                                                            Checked="AddressEntry_Checked"
-                                                            Unchecked="AddressEntry_Unchecked"
-                                                            HorizontalAlignment="Center"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Description" Width="200">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Description}"
-                                                             FontFamily="Cascadia Code" FontSize="12"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Address" Width="120">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Address}"
-                                                             Foreground="{Binding AddressForeground}"
-                                                             FontFamily="Cascadia Code" FontSize="12"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Type" Width="80">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Type}"
-                                                             FontFamily="Cascadia Code" FontSize="12"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Header="Value" Width="100">
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Value}"
-                                                             FontFamily="Cascadia Code" FontSize="12"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                    </GridView>
-                                </ListView.View>
-                                <ListView.ContextMenu>
-                                    <ContextMenu Background="#1F2937" Foreground="#E6EDF3">
-                                        <ContextMenu.Resources>
-                                            <Style TargetType="MenuItem">
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="Foreground" Value="#E6EDF3"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsHighlighted" Value="True">
-                                                        <Setter Property="Background" Value="#374151"/>
-                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
-                                                        <Setter Property="BorderBrush" Value="Transparent"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsEnabled" Value="False">
-                                                        <Setter Property="Foreground" Value="#6B7280"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                            <Style TargetType="Separator">
-                                                <Setter Property="Background" Value="#374151"/>
-                                                <Setter Property="Margin" Value="0,2"/>
-                                            </Style>
-                                        </ContextMenu.Resources>
-                                        <MenuItem Header="Toggle Freeze" Click="ToggleFreeze_Click"/>
-                                        <MenuItem Header="Show as Hex" Click="ShowAsHex_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="Increase Value (+1)" Click="IncreaseValue_Click"/>
-                                        <MenuItem Header="Decrease Value (-1)" Click="DecreaseValue_Click"/>
-                                        <MenuItem Header="Change Value..." Click="ChangeValue_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="Find out what writes to this address" Click="FindWrites_Click"/>
-                                        <MenuItem Header="Find out what accesses this address" Click="FindAccesses_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="Copy Address" Click="CopyAddress_Click"/>
-                                        <MenuItem Header="Copy Value" Click="CopyValue_Click"/>
-                                        <MenuItem Header="Copy Description" Click="CopyDescription_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="Delete" Click="DeleteAddress_Click"/>
-                                    </ContextMenu>
-                                </ListView.ContextMenu>
-                            </ListView>
-                        </Border>
+
+                <GridSplitter x:Name="mainContentSplitter" Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Cursor="SizeNS"/>
+
+                <!-- Address list -->
+                <Border Grid.Row="2" Style="{StaticResource Main.CardStyle}">
+                    <Grid><Grid.RowDefinitions><RowDefinition Height="30"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="M 1,3 L 3,5 L 6,1 M 9,3 L 22,3 M 1,10 L 3,12 L 6,8 M 9,10 L 22,10 M 1,17 L 3,19 L 6,15 M 9,17 L 22,17" Stroke="{StaticResource Main.Accent}" StrokeThickness="1.5" Margin="2,0,10,0"/>
+                            <TextBlock Text="ADDRESS LIST" Style="{StaticResource Main.SectionTitle}"/>
+                        </StackPanel>
+                        <DataGrid x:Name="lvAddressListWpf" Grid.Row="1" Style="{StaticResource Main.DataGrid}" AutoGenerateColumns="False" Margin="0,3,0,0" MouseDoubleClick="LvAddressList_DoubleClick">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="48"><DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding Frozen}" Checked="AddressEntry_Checked" Unchecked="AddressEntry_Unchecked" HorizontalAlignment="Center"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="30*"/>
+                                <DataGridTemplateColumn Header="Address" Width="23*"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Address}" Foreground="{Binding AddressForeground}"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="12*"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="35*"/>
+                            </DataGrid.Columns>
+                            <DataGrid.ContextMenu><ContextMenu>
+                                <MenuItem Header="Toggle Freeze" Click="ToggleFreeze_Click"/><MenuItem Header="Show as Hex" Click="ShowAsHex_Click"/><Separator/>
+                                <MenuItem Header="Increase Value (+1)" Click="IncreaseValue_Click"/><MenuItem Header="Decrease Value (-1)" Click="DecreaseValue_Click"/><MenuItem Header="Change Value..." Click="ChangeValue_Click"/><Separator/>
+                                <MenuItem Header="Find out what writes to this address" Click="FindWrites_Click"/><MenuItem Header="Find out what accesses this address" Click="FindAccesses_Click"/><Separator/>
+                                <MenuItem Header="Copy Address" Click="CopyAddress_Click"/><MenuItem Header="Copy Value" Click="CopyValue_Click"/><MenuItem Header="Copy Description" Click="CopyDescription_Click"/><Separator/>
+                                <MenuItem Header="Delete" Click="DeleteAddress_Click"/>
+                            </ContextMenu></DataGrid.ContextMenu>
+                        </DataGrid>
                     </Grid>
                 </Border>
             </Grid>
-            
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- STATUS BAR -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <Border x:Name="statusBar" Grid.Row="5"
-                    Background="{StaticResource BackgroundCardBrush}"
-                    Padding="10,5"
-                    CornerRadius="0,0,8,8">
-                <Grid>
-                    <StackPanel x:Name="driverStatusPanel" Orientation="Horizontal" Visibility="Collapsed">
-                        <Ellipse Width="6" Height="6" Fill="{StaticResource AccentGreenBrush}"
-                                 Margin="0,0,6,0"/>
-                        <TextBlock x:Name="txtDriverStatus" Text="Driver: CrxShield Loaded"
-                                   Foreground="{StaticResource StatusSuccessBrush}"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"/>
-                    </StackPanel>
-                    <TextBlock x:Name="txtStatus"
-                               Text="Ready"
-                               Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="10"
-                               HorizontalAlignment="Right"/>
 
-                    <!-- Resize Thumb -->
-                    <Thumb x:Name="resizeThumb"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Bottom"
-                           Width="16" Height="16"
-                           Margin="0,0,-5,-2"
-                           Opacity="0.5"
-                           Cursor="SizeNWSE"
-                           DragDelta="ResizeThumb_DragDelta">
-                        <Thumb.Template>
-                            <ControlTemplate TargetType="Thumb">
-                                <Grid Background="Transparent">
-                                    <!-- Visual resize grip indicator -->
-                                    <Path Data="M 0,12 L 12,0 M 4,12 L 12,4 M 8,12 L 12,8"
-                                          Stroke="#888888"
-                                          StrokeThickness="1"
-                                          Stretch="None"
-                                          HorizontalAlignment="Right"
-                                          VerticalAlignment="Bottom"
-                                          Margin="2"/>
-                                </Grid>
-                            </ControlTemplate>
-                        </Thumb.Template>
+            <!-- Status -->
+            <Border x:Name="statusBar" Grid.Row="5" Background="#081522" BorderBrush="{StaticResource Main.BorderSoft}" BorderThickness="0,1,0,0" CornerRadius="0,0,10,10" Padding="12,0">
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="24"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="txtStatus" Text="Ready" Foreground="{StaticResource Main.Text}" VerticalAlignment="Center"/>
+                    <StackPanel x:Name="driverStatusPanel" Grid.Column="1" Orientation="Horizontal" Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Main.Success}" Margin="0,0,7,0"/>
+                        <TextBlock x:Name="txtDriverStatus" Text="Driver: CrxShield Loaded" Foreground="{StaticResource Main.Success}" FontSize="11" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <Thumb x:Name="resizeThumb" Grid.Column="2" Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False" Opacity="0.55">
+                        <Thumb.Template><ControlTemplate TargetType="Thumb"><Path Data="M 2,16 L 16,2 M 8,16 L 16,8 M 13,16 L 16,13" Stroke="{StaticResource Main.TextSecondary}" StrokeThickness="1.2"/></ControlTemplate></Thumb.Template>
                     </Thumb>
                 </Grid>
             </Border>
-            
         </Grid>
     </Border>
-    
 </Window>

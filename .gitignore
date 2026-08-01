@@ -19,6 +19,11 @@ build64/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
+
+# Python caches
+__pycache__/
+*.py[cod]
 
 # NuGet
 packages/
@@ -45,6 +50,13 @@ coverage.*
 *.ilk
 *.exp
 *.lib
+*.dll
+*.exe
+*.recipe
+*.FileListAbsolute.txt
+
+# Native project output folders
+**/Release/
 
 # Driver output
 *.sys
@@ -85,3 +97,6 @@ Makefile
 *.snk
 appsettings.*.local.json
 settings.local.json
+
+# Local certificate bootstrap (contains machine-specific development input)
+CrxShield/Tools/_run-ca-setup.ps1

@@ -504,6 +504,25 @@ namespace CrxMem.Core
         /// </summary>
         public bool WriteWithProtection<T>(IntPtr address, T value) where T : struct
         {
+            // Kernel mode: the driver writes through any page protection (MmCopyVirtualMemory
+            // + MDL fallback), so route directly and skip VirtualProtectEx entirely --
+            // protection flips on watched pages are exactly what anti-tamper checks look for.
+            if (AntiCheatBypassForm.UseKernelMode && AntiCheatBypassForm.DriverController != null && Target != null)
+            {
+                int kernelSize = Marshal.SizeOf<T>();
+                byte[] kernelBuffer = new byte[kernelSize];
+                GCHandle kernelHandle = GCHandle.Alloc(kernelBuffer, GCHandleType.Pinned);
+                try
+                {
+                    Marshal.StructureToPtr(value, kernelHandle.AddrOfPinnedObject(), false);
+                    return Write(address, kernelBuffer);
+                }
+                finally
+                {
+                    kernelHandle.Free();
+                }
+            }
+
             if (!IsOpen) return false;
 
             int size = Marshal.SizeOf<T>();
@@ -541,7 +560,22 @@ namespace CrxMem.Core
         /// </summary>
         public bool WriteWithProtection(IntPtr address, byte[] data)
         {
-            if (!IsOpen || data == null || data.Length == 0) return false;
+            if (data == null || data.Length == 0) return false;
+
+            // Kernel mode: write through the driver without touching page protection
+            // (the MDL fallback covers read-only code pages). Flush the instruction cache
+            // via the usermode handle when one is available so code edits take effect.
+            if (AntiCheatBypassForm.UseKernelMode && AntiCheatBypassForm.DriverController != null && Target != null)
+            {
+                bool kernelSuccess = Write(address, data);
+                if (kernelSuccess && IsOpen)
+                {
+                    FlushInstructionCache(Handle, address, (UIntPtr)data.Length);
+                }
+                return kernelSuccess;
+            }
+
+            if (!IsOpen) return false;
 
             // Try PAGE_EXECUTE_READWRITE first (for code sections), fall back to PAGE_READWRITE
             uint newProtect = PAGE_EXECUTE_READWRITE;

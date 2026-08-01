@@ -78,7 +78,11 @@ public sealed class IcedDisassemblyService : IDisassemblyService
                 : instruction.IP;
             MemoryLocation location = MemoryLocation.Create(runtimeAddress, request.Module);
             ulong? flowTarget = GetFlowTarget(instruction);
-            string comment = _metadata.GetComment(location) ?? ResolveFlowTarget(flowTarget, request.Module);
+            string symbol = ResolveFlowTarget(flowTarget, request.Module);
+            string? userComment = _metadata.GetComment(location);
+            ResolvedMemoryAnnotation? annotation = (_metadata as IEnumerableMemoryMetadataService)?.GetAnnotation(location);
+            string comment = string.Join("  ", new[] { annotation?.Record.Label, userComment, symbol }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
             string marker = _metadata.HasBookmark(location) ? "◆" : string.Empty;
             rows.Add(new DisassemblyPreviewRow(
                 marker,
@@ -88,7 +92,12 @@ public sealed class IcedDisassemblyService : IDisassemblyService
                 comment,
                 runtimeAddress,
                 tokens,
-                flowTarget));
+                flowTarget,
+                annotation?.Id.Value,
+                annotation?.Record.Label,
+                userComment,
+                symbol,
+                annotation?.Record.Color));
 
             if (instruction.IsInvalid) decoder.IP = runtimeAddress + 1;
         }

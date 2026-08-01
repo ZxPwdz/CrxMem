@@ -17,12 +17,16 @@ public partial class MemoryViewWindow : Window
     private readonly MemoryViewViewModel _viewModel;
     private readonly IMemoryViewLayoutStore _layoutStore;
     private readonly IAutoAssemblerService? _autoAssemblerService;
+    private readonly IEnumerableMemoryMetadataService? _annotationService;
+    private readonly BookmarkManagerControl? _bookmarkManager;
     private double _visibleInspectorWidth = 350;
     private double _visiblePatchEditorWidth = 350;
     private double _codeFontSize = 12;
     private double _rowHeight = 21;
     private DataGrid? _dragSelectionGrid;
     private int _dragSelectionAnchor = -1;
+    private readonly System.Windows.Threading.DispatcherTimer _driverStatusTimer;
+    private string? _driverVersionText;
 
     public MemoryViewWindow(ProcessAccess process, IntPtr startAddress = default, IMemoryViewHostBridge? hostBridge = null)
         : this(CreateComposition(process), startAddress, hostBridge)
@@ -80,6 +84,7 @@ public partial class MemoryViewWindow : Window
         _startAddress = unchecked((ulong)startAddress.ToInt64());
         _layoutStore = layoutStore ?? throw new ArgumentNullException(nameof(layoutStore));
         _autoAssemblerService = autoAssemblerService;
+        _annotationService = editableMetadata as IEnumerableMemoryMetadataService;
         _viewModel = new MemoryViewViewModel(
             dataService ?? throw new ArgumentNullException(nameof(dataService)),
             debugSession: debugSession,
@@ -99,24 +104,92 @@ public partial class MemoryViewWindow : Window
             callStackService: callStackService,
             symbolService: symbolService);
         DataContext = _viewModel;
+        if (_annotationService != null)
+        {
+            _bookmarkManager = new BookmarkManagerControl();
+            _bookmarkManager.Configure(_annotationService, _viewModel);
+            _bookmarkManager.NavigateRequested += BookmarkManager_NavigateRequested;
+            _bookmarkManager.ReturnToMemoryRequested += (_, _) => ShowMemoryWorkspace();
+            bookmarkManagerHost.Content = _bookmarkManager;
+        }
+        else bookmarkWorkspaceButton.IsEnabled = false;
         ApplyLayout(_layoutStore.Load());
         Loaded += MemoryViewWindow_Loaded;
         Closed += MemoryViewWindow_Closed;
         PreviewKeyDown += MemoryViewWindow_PreviewKeyDown;
+
+        // Kernel-driver status badge: poll live global state (no IOCTLs on the timer)
+        _driverStatusTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _driverStatusTimer.Tick += (s, e) => UpdateDriverStatusIndicator();
     }
 
-    private async void MemoryViewWindow_Loaded(object sender, RoutedEventArgs e) =>
+    private async void MemoryViewWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        UpdateDriverStatusIndicator();
+        _driverStatusTimer.Start();
         await _viewModel.InitializeAsync(_startAddress);
+    }
 
     private void MemoryViewWindow_Closed(object? sender, EventArgs e)
     {
+        _driverStatusTimer.Stop();
         SaveLayout();
         _viewModel.Dispose();
     }
 
+    /// <summary>
+    /// Refresh the kernel-driver status badge from live global state.
+    /// Truth source: AntiCheatBypassForm.UseKernelMode + DriverController.IsConnected()
+    /// (cheap handle check). The driver version is queried via IOCTL only once,
+    /// when the badge first observes a connected state.
+    /// </summary>
+    private void UpdateDriverStatusIndicator()
+    {
+        var controller = AntiCheatBypassForm.DriverController;
+        bool connected = AntiCheatBypassForm.UseKernelMode
+            && controller != null
+            && controller.IsConnected();
+
+        if (connected)
+        {
+            if (_driverVersionText == null)
+            {
+                _driverVersionText = string.Empty;
+                try
+                {
+                    if (controller!.GetVersion(out uint major, out uint minor, out uint build))
+                        _driverVersionText = $" v{major}.{minor}.{build}";
+                }
+                catch
+                {
+                    // Version is cosmetic; never let an IOCTL hiccup break the status badge.
+                }
+            }
+
+            driverStatusText.Text = $"● DRIVER · KERNEL MODE{_driverVersionText}";
+            driverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("StatusSuccessBrush");
+            driverStatusBadge.ToolTip = "Memory read/write operations route through the CrxShield kernel driver";
+        }
+        else
+        {
+            _driverVersionText = null; // re-query version on the next connect
+            driverStatusText.Text = "● User-mode (driver off)";
+            driverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("MemoryView.TextMutedBrush");
+            driverStatusBadge.ToolTip = "Memory operations use standard Win32 APIs";
+        }
+    }
+
     private void MemoryViewWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.G && Keyboard.Modifiers == ModifierKeys.Control)
+        if (e.Key == Key.B && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ShowBookmarkManager();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.G && Keyboard.Modifiers == ModifierKeys.Control)
         {
             addressBox.Focus();
             SelectAddressText();
@@ -142,6 +215,32 @@ public partial class MemoryViewWindow : Window
             _ = PasteSelectedHexBytesAsync();
             e.Handled = true;
         }
+    }
+
+    private async void BookmarkManager_NavigateRequested(object? sender, ResolvedMemoryAnnotation annotation)
+    {
+        if (!annotation.RuntimeAddress.HasValue) return;
+        await _viewModel.NavigateToAddressAsync(annotation.RuntimeAddress.Value, annotation.Expression);
+        disassemblyView.Focus();
+    }
+
+    private void ShowBookmarkManager_Click(object sender, RoutedEventArgs e) => ShowBookmarkManager();
+    private void ShowMemoryWorkspace_Click(object sender, RoutedEventArgs e) => ShowMemoryWorkspace();
+
+    private void ShowBookmarkManager()
+    {
+        if (_bookmarkManager == null) return;
+        bookmarkManagerPanel.Visibility = Visibility.Visible;
+        SetInspectorVisible(false);
+        _bookmarkManager.RefreshRows();
+        _bookmarkManager.FocusSearch();
+    }
+
+    private void ShowMemoryWorkspace()
+    {
+        bookmarkManagerPanel.Visibility = Visibility.Collapsed;
+        SetInspectorVisible(showInspectorMenu.IsChecked);
+        disassemblyView.Focus();
     }
 
     private void FocusAddress_Click(object sender, RoutedEventArgs e)
@@ -180,6 +279,8 @@ public partial class MemoryViewWindow : Window
         _viewModel.LoadRecentExpressions(settings.RecentExpressions);
         _viewModel.LoadRecentHexExpressions(settings.RecentHexExpressions);
         _viewModel.SetMicrosoftSymbolServerEnabled(settings.MicrosoftSymbolServerEnabled);
+        _bookmarkManager?.ApplySettings(settings);
+        if (settings.BookmarkManagerSelected) ShowBookmarkManager();
 
         if (settings.WindowLeft is double left && settings.WindowTop is double top &&
             double.IsFinite(left) && double.IsFinite(top) &&
@@ -199,13 +300,14 @@ public partial class MemoryViewWindow : Window
         try
         {
             Rect bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
-            _layoutStore.Save(new MemoryViewLayoutSettings
+            var settings = new MemoryViewLayoutSettings
             {
                 WindowWidth = bounds.Width,
                 WindowHeight = bounds.Height,
                 WindowLeft = bounds.Left,
                 WindowTop = bounds.Top,
-                InspectorWidth = showInspectorMenu.IsChecked ? inspectorColumn.ActualWidth : _visibleInspectorWidth,
+                InspectorWidth = showInspectorMenu.IsChecked && bookmarkManagerPanel.Visibility != Visibility.Visible
+                    ? inspectorColumn.ActualWidth : _visibleInspectorWidth,
                 BottomToolsHeight = bottomToolsRow.ActualHeight,
                 PatchEditorWidth = showPatchEditorMenu.IsChecked ? patchEditorColumn.ActualWidth : _visiblePatchEditorWidth,
                 RegisterPanelHeight = registerPanelRow.ActualHeight,
@@ -218,8 +320,11 @@ public partial class MemoryViewWindow : Window
                 RecentExpressions = _viewModel.RecentExpressions.ToList(),
                 RecentHexExpressions = _viewModel.RecentHexExpressions.ToList(),
                 MicrosoftSymbolServerEnabled = _viewModel.MicrosoftSymbolServerEnabled,
-                ColumnWidths = CaptureColumnWidths()
-            });
+                ColumnWidths = CaptureColumnWidths(),
+                BookmarkManagerSelected = bookmarkManagerPanel.Visibility == Visibility.Visible
+            };
+            _bookmarkManager?.CaptureSettings(settings);
+            _layoutStore.Save(settings);
         }
         catch
         {
@@ -424,6 +529,92 @@ public partial class MemoryViewWindow : Window
                 grid.SelectedItems.Cast<object>().Select(row => row.ToString() ?? string.Empty)));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // Patches tab: history clearing (never touches target memory unless
+    // the user explicitly picks a "Restore ..." action).
+    // ═══════════════════════════════════════════════════════════════
+
+    private void PatchClearHistory_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.PatchHistory.Count == 0)
+        {
+            System.Windows.MessageBox.Show(this, "Patch history is already empty.",
+                "Clear patch history", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        int applied = _viewModel.AppliedPatchCount;
+        string prompt = applied > 0
+            ? $"This clears ALL patch-history entries WITHOUT modifying target memory.\n\n" +
+              $"{applied} of {(applied == 1 ? "them is" : "them are")} ACTIVE patches: those bytes will stay patched and you will lose the information needed to restore them.\n\n" +
+              "Clear the history anyway?\n(Choose No if you want 'Restore all & clear' instead.)"
+            : "Clear all patch-history entries?\n\nTarget memory is not modified.";
+
+        if (System.Windows.MessageBox.Show(this, prompt, "Clear patch history",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        _viewModel.ClearPatchHistoryOnly();
+    }
+
+    private async void PatchRestoreAllClear_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.PatchHistory.Count == 0)
+        {
+            System.Windows.MessageBox.Show(this, "Patch history is already empty.",
+                "Restore all & clear", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        int applied = _viewModel.AppliedPatchCount;
+        string prompt = applied > 0
+            ? $"This restores the original bytes for {applied} ACTIVE {(applied == 1 ? "patch" : "patches")} (newest first), then clears the history.\n\n" +
+              "Entries whose restore fails (target bytes no longer match) are kept in the list.\n\nContinue?"
+            : "No active patches to restore.\n\nClear all patch-history entries?";
+
+        if (System.Windows.MessageBox.Show(this, prompt, "Restore all & clear",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        await _viewModel.RestoreAllPatchesAndClearHistoryAsync();
+    }
+
+    private async void PatchRemoveSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var rows = patchHistoryGrid.SelectedItems.OfType<PatchHistoryRow>().ToList();
+        if (rows.Count == 0)
+            return;
+
+        var idsToRemove = new HashSet<Guid>(rows.Select(row => row.Id));
+        var appliedRows = rows.Where(row => row.State == "Applied").ToList();
+
+        if (appliedRows.Count > 0)
+        {
+            MessageBoxResult choice = System.Windows.MessageBox.Show(this,
+                $"{appliedRows.Count} of the selected {(appliedRows.Count == 1 ? "entry is" : "entries are")} ACTIVE patches.\n\n" +
+                "Yes    = restore the original bytes first, then remove\n" +
+                "No     = remove history only (memory stays patched)\n" +
+                "Cancel = keep everything",
+                "Remove patch history entries",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+            if (choice == MessageBoxResult.Cancel)
+                return;
+
+            if (choice == MessageBoxResult.Yes)
+            {
+                // Only forget the active entries that were actually restored.
+                HashSet<Guid> restored = await _viewModel.RestorePatchesAsync(
+                    appliedRows.Select(row => row.Id).ToArray());
+                idsToRemove.RemoveWhere(id =>
+                    appliedRows.Any(row => row.Id == id) && !restored.Contains(id));
+            }
+        }
+
+        if (idsToRemove.Count > 0)
+            _viewModel.RemovePatchHistoryEntries(idsToRemove);
+    }
+
     private void CopyDisassemblyRow_Click(object sender, RoutedEventArgs e)
     {
         if (disassemblyView.SelectedItems.Count > 0)
@@ -515,8 +706,10 @@ public partial class MemoryViewWindow : Window
         EditableMemoryMetadata current = _viewModel.GetSelectedMetadata();
         var dialog = new MetadataEditDialog(current.Comment, current.IsBookmarked, current.Label) { Owner = this };
         if (dialog.ShowDialog() != true) return;
-        await _viewModel.UpdateSelectedMetadataAsync(new EditableMemoryMetadata(
-            dialog.Comment, dialog.IsBookmarked, dialog.BookmarkLabel));
+        if (!await _viewModel.UpdateSelectedMetadataAsync(new EditableMemoryMetadata(
+                dialog.Comment, dialog.IsBookmarked, dialog.BookmarkLabel)))
+            System.Windows.MessageBox.Show(this, _viewModel.Status, "Annotation could not be saved",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private async void ToggleBookmark_Click(object sender, RoutedEventArgs e) =>
@@ -525,7 +718,9 @@ public partial class MemoryViewWindow : Window
     private async Task ToggleSelectedBookmarkAsync()
     {
         EditableMemoryMetadata current = _viewModel.GetSelectedMetadata();
-        await _viewModel.UpdateSelectedMetadataAsync(current with { IsBookmarked = !current.IsBookmarked });
+        if (!await _viewModel.UpdateSelectedMetadataAsync(current with { IsBookmarked = !current.IsBookmarked }))
+            System.Windows.MessageBox.Show(this, _viewModel.Status, "Bookmark could not be changed",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void ToggleBreakpointContext_Click(object sender, RoutedEventArgs e)
@@ -663,7 +858,7 @@ public partial class MemoryViewWindow : Window
         var memory = new ProcessMemoryService(process);
         var modules = new ModuleService(process);
         var moduleIdentity = new FileModuleIdentityService(modules);
-        var metadata = new VersionedMemoryMetadataService(modules, moduleIdentity);
+        var metadata = new VersionedMemoryMetadataService(modules, moduleIdentity, is64Bit: process.Is64Bit);
         var patchAdapter = new ProcessPatchMemoryAdapter(process);
         var patches = new PatchService(patchAdapter, new JsonPatchHistoryStore(), moduleIdentity);
         var addressExpressions = new AddressExpressionService(memory, modules);
@@ -729,7 +924,12 @@ public partial class MemoryViewWindow : Window
                 "Auto Assembler", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        new AutoAssemblerWindow(_autoAssemblerService) { Owner = this }.Show();
+        var context = new AutoAssemblerEditorContext(
+            _viewModel.Architecture.Equals("x64", StringComparison.OrdinalIgnoreCase) ? 64 : 32,
+            _viewModel.ModuleName == "—" ? null : _viewModel.ModuleName,
+            _viewModel.SelectedInstructionExpression,
+            _viewModel.SelectedInstructionBytes);
+        new AutoAssemblerWindow(_autoAssemblerService, context) { Owner = this }.Show();
     }
 
     private void About_Click(object sender, RoutedEventArgs e) =>

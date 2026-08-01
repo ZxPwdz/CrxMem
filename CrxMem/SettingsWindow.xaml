@@ -151,6 +151,89 @@
                     </DockPanel>
                 </Grid>
             </TabItem>
+
+            <TabItem Header="CrxShield" Style="{StaticResource SettingsTab}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,4,18,18">
+                    <StackPanel>
+                        <TextBlock Text="Driver status" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,3">
+                            <TextBlock Text="Service state" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock x:Name="txtCrxServiceState" Text="Unknown" HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <TextBlock Text="Device connection" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock x:Name="txtCrxConnectionState" Text="Disconnected" HorizontalAlignment="Right" FontWeight="SemiBold"/>
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <TextBlock Text="Driver version" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock x:Name="txtCrxDriverVersion" Text="—" HorizontalAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,3">
+                            <TextBlock Text="Driver file" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock x:Name="txtCrxDriverPath" Text="Not found" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="380"/>
+                        </Grid>
+                        <Button Content="Refresh" HorizontalAlignment="Right" Margin="0,6,0,0"
+                                Style="{StaticResource ModernButtonStyle}" Click="CrxRefresh_Click"/>
+
+                        <TextBlock Text="Driver control" Style="{StaticResource SectionTitle}"/>
+                        <Border x:Name="crxElevationWarning" Background="{StaticResource StatusWarningBackgroundBrush}"
+                                BorderBrush="{StaticResource StatusWarningBrush}" BorderThickness="1" CornerRadius="5"
+                                Padding="12" Margin="0,0,0,6" Visibility="Collapsed">
+                            <TextBlock Foreground="{StaticResource StatusWarningBrush}" TextWrapping="Wrap"
+                                       Text="CrxMem is not running as administrator. The CrxShield device is restricted to SYSTEM/Administrators, so driver load, unload and memory operations will fail with access denied until the app is restarted elevated."/>
+                        </Border>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Load driver" Margin="0,0,8,0" Style="{StaticResource ModernButtonStyle}" Click="CrxLoadDriver_Click"/>
+                            <Button Content="Unload driver" Margin="0,0,8,0" Style="{StaticResource DangerButtonStyle}" Click="CrxUnloadDriver_Click"/>
+                            <Button x:Name="btnCrxRestartDriver" Content="Restart driver" Margin="0,0,8,0" Style="{StaticResource ModernButtonStyle}" Click="CrxRestartDriver_Click"
+                                    ToolTip="Stops the running CrxShield service and starts it again, loading the newest CrxShield.sys image (testsigning must already be on)."/>
+                            <Button Content="Open tools folder" Style="{StaticResource ModernButtonStyle}" Click="CrxOpenTools_Click"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Connection" Style="{StaticResource SectionTitle}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button Content="Connect" Margin="0,0,8,0" Style="{StaticResource ModernButtonStyle}" Click="CrxConnect_Click"/>
+                            <Button Content="Disconnect" Style="{StaticResource ModernButtonStyle}" Click="CrxDisconnect_Click"/>
+                        </StackPanel>
+                        <CheckBox x:Name="chkUseKernelMode" Content="Use kernel driver for memory operations" Margin="0,4"
+                                  ToolTip="Master switch read by every memory operation in CrxMem. Takes effect immediately."
+                                  Checked="ChkUseKernelMode_Changed" Unchecked="ChkUseKernelMode_Changed"/>
+
+                        <TextBlock Text="Driver self-test" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Connects, reads the driver version, launches the debug target and verifies kernel reads and writes against its known test buffer."
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <Button x:Name="btnRunSelfTest" Content="Run self-test" HorizontalAlignment="Left"
+                                Style="{StaticResource PrimaryButtonStyle}" Click="CrxRunSelfTest_Click"/>
+
+                        <TextBlock Text="Manual memory test" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="PID (decimal)" Style="{StaticResource FieldLabel}" Margin="0,0,6,0"/>
+                            <TextBox x:Name="txtCrxPid" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,12,0"/>
+                            <TextBlock Text="Address (hex)" Grid.Column="2" Style="{StaticResource FieldLabel}" Margin="0,0,6,0"/>
+                            <TextBox x:Name="txtCrxAddress" Grid.Column="3" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,12,0"/>
+                            <TextBlock Text="Size" Grid.Column="4" Style="{StaticResource FieldLabel}" Margin="0,0,6,0"/>
+                            <TextBox x:Name="txtCrxSize" Grid.Column="5" Style="{StaticResource NumericField}" Text="16" ToolTip="1 to 4096 bytes"/>
+                        </Grid>
+                        <TextBlock Text="Write data (hex bytes, space-separated)" Style="{StaticResource FieldLabel}" Margin="0,8,0,4"/>
+                        <TextBox x:Name="txtCrxWriteData" Style="{StaticResource ModernTextBoxStyle}" ToolTip="Example: DE AD BE EF"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Read" Margin="0,0,8,0" Style="{StaticResource ModernButtonStyle}" Click="CrxRead_Click"/>
+                            <Button Content="Write" Style="{StaticResource ModernButtonStyle}" Click="CrxWrite_Click"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Log" Style="{StaticResource SectionTitle}"/>
+                        <TextBox x:Name="txtCrxLog" Style="{StaticResource ModernTextBoxStyle}" Height="170"
+                                 IsReadOnly="True" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                 FontFamily="Consolas" FontSize="12"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
 
         <DockPanel Grid.Row="2" Margin="0,16,0,0">

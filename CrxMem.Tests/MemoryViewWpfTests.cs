@@ -188,6 +188,19 @@ public sealed class MemoryViewWpfTests
                 Assert.Equal("90 90", textDialog.Value);
                 textDialog.Close();
 
+                var aaWindow = new AutoAssemblerWindow(new FakeAutoAssemblerService(),
+                    new AutoAssemblerEditorContext(64, "target.exe", "target.exe+1000", "48 89 D8"));
+                var aaTemplate = Assert.IsType<ComboBox>(aaWindow.FindName("templateBox"));
+                Assert.NotNull(aaTemplate.Template);
+                Assert.NotEqual(System.Windows.Media.Brushes.White, aaTemplate.Background);
+                Assert.IsType<ListBox>(aaWindow.FindName("diagnosticsList"));
+                Assert.IsType<GridSplitter>(aaWindow.FindName("diagnosticsSplitter"));
+                aaWindow.Close();
+
+                var bookmarkManager = new BookmarkManagerControl();
+                Assert.IsType<DataGrid>(bookmarkManager.FindName("grid"));
+                Assert.IsType<TextBox>(bookmarkManager.FindName("searchBox"));
+
                 var renderer = new VirtualizedDisassemblyControl
                 {
                     CodeFontSize = 15,
@@ -283,6 +296,20 @@ public sealed class MemoryViewWpfTests
         }
     }
 
+    private sealed class FakeAutoAssemblerService : IAutoAssemblerService
+    {
+        public AutoAssemblerCapability TrustedLuaCapabilities { get; private set; }
+        public string LuaCapabilitySummary => "No trusted capabilities.";
+        public void SetTrustedLuaCapabilities(AutoAssemblerCapability capabilities) => TrustedLuaCapabilities = capabilities;
+        public void RegisterLuaCommand(string name, Func<IReadOnlyList<string>, CancellationToken, Task<string>> command) { }
+        public Task<AutoAssemblerCompileResult> CheckAsync(string source, bool enable, CancellationToken cancellationToken) =>
+            Task.FromResult(new AutoAssemblerCompileResult(null, []));
+        public Task<AutoAssemblerExecutionResult> EnableAsync(string source, CancellationToken cancellationToken) =>
+            Task.FromResult(new AutoAssemblerExecutionResult(false, "test"));
+        public Task<AutoAssemblerExecutionResult> DisableAsync(string source, CancellationToken cancellationToken) =>
+            Task.FromResult(new AutoAssemblerExecutionResult(false, "test"));
+    }
+
     private sealed class FakeMemoryViewLayoutStore : IMemoryViewLayoutStore
     {
         public MemoryViewLayoutSettings Load() => new();
@@ -322,6 +349,8 @@ public sealed class MemoryViewWpfTests
             Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
         public Task<PatchResult> RedoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new PatchResult(PatchStatus.Rejected, PatchFailureStage.Validation, "None"));
+        public int RemoveFromHistory(IReadOnlyCollection<Guid> patchIds) => 0;
+        public int ClearHistory() => 0;
     }
 
     private sealed class PausedDebugSession : IDebugSessionService

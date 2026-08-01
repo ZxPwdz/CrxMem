@@ -1,0 +1,292 @@
+FxpGunZ Anti-Cheat / Anti-Debug / HWID — Complete Map (Updated 2026-07-15)
+===================================================================================
+
+Key Technical Info
+------------------
+  Process: Gunz.exe (32-bit, runs under WoW64)
+  PE Base: 0x00130000 (ASLR — varies per launch, use RVA format Gunz.exe+offset)
+  kernel32 (32-bit): 0x75F30000
+  ntdll (32-bit): 0x77760000
+  Pointer table base: 0x008BA000 (RVA 0x78A000)
+
+  Calling convention: ALL imported APIs go through a LOCAL POINTER TABLE at 0x008BA000.
+  The code uses FF 15 [ptr_addr] (indirect call) where ptr_addr contains the actual
+  API address. This is NOT the traditional PE IAT — it's a custom secondary table.
+
+  IAT (traditional): at RVA 0x2F310AC (kernel32), also populated but not used by FF 15.
+
+===================================================================================
+POINTER TABLE MAP (RVA 0x78A000 — 0x008BA000)
+===================================================================================
+  Each entry = 4 bytes (API function address in 32-bit kernel32).
+  Call sites use: FF 15 [table_entry]
+
+  RVA        Absolute        Value       Function
+  ---------------------------------------------------------------------------
+  0x78A270   0x008BA270      0x75F51E40  VirtualProtect
+  0x78A39C   0x008BA39C      0x75F50E70  LoadLibraryA
+  0x78A3B4   0x008BA3B4      0x75F4F7F0  GetProcAddress
+  0x78A3C4   0x008BA3C4      0x75F52640  GetTickCount
+  0x78A400   0x008BA400      0x75F52370  IsDebuggerPresent
+  0x78A408   0x008BA408      0x75F65840  GetCurrentDirectoryA
+  0x78A418   0x008BA418      0x75F4F810  VirtualQuery
+  0x78A438   0x008BA438      0x75F530F0  GetCurrentProcess
+  0x78A458   0x008BA458      0x75F533B0  CreateFileW
+  0x78A48C   0x008BA48C      0x75F519C0  SetUnhandledExceptionFilter
+  0x78A364   0x008BA364      0x75F49910  (used in exit path — likely TerminateProcess)
+  0x78A47C   0x008BA47C      0x75F664F0  (used in exit path after debugger detection)
+
+  NOTE: ReadProcessMemory is NOT in the pointer table — loaded dynamically via
+  GetProcAddress, consistent with old documented behavior (evades static analysis).
+
+===================================================================================
+1. IsDebuggerPresent — 4 sites
+===================================================================================
+  Pointer: 0x008BA400 (RVA 0x78A400)
+  Call AOB: FF 15 00 A4 8B 00
+
+  Site 1: Gunz.exe+56267 (0x00169267)
+    Unique AOB: C7 45 FC 02 00 00 00 FF 15 00 A4 8B 00 85 C0 74 5A
+    Flow: test eax,eax; je +0x5A → skip if not debugging
+          If debugger → sets [ebp-41]=1, calls sub_15BCF0 for cleanup
+
+  Site 2: Gunz.exe+74450D (0x0077450D)
+    Unique AOB: FF 15 00 A4 8B 00 6A 00 8D 58 FF F7 DB
+    Flow: lea ebx,[eax-01]; neg ebx; sbb bl,bl; inc bl → ebx=1 if debugger
+          (bitwise flag used later in function)
+
+  Site 3: Gunz.exe+7447BE (0x007747BE) [DETECTION + EXIT PATH]
+    Unique AOB: 85 C0 79 1C FF 15 00 A4 8B 00 85 C0 74 0B 68 ?? ?? ?? ?? FF 15 7C A4 8B 00
+    Flow: test eax,eax; je skip_exit
+          If debugger → push error_string; call [0x8BA47C] (likely ExitProcess/TerminateProcess)
+          If not → set byte [00A6E9E4]=1 and continue
+
+  Site 4: Gunz.exe+7E5417 (0x007F5417) [COMBINED WITH SUEF]
+    Unique AOB: FF 15 00 A4 8B 00 6A 00 8B F8 FF 15 8C A4 8B 00
+    Flow: IsDebuggerPresent → save in edi → SetUnhandledExceptionFilter(0)
+          → Check result of both for anti-debug decision
+
+===================================================================================
+2. GetTickCount Hook Detection (ScyllaHide) — 242 sites
+===================================================================================
+  Pointer: 0x008BA3C4 (RVA 0x78A3C4)
+  Call AOB: FF 15 C4 A3 8B 00
+
+  Pattern (repeated 3 times back-to-back at each site):
+    FF 15 C4 A3 8B 00    call [GetTickCount]
+    85 C0                 test eax,eax
+    0F 86 ?? ?? ?? ??    jbe  FAIL_DETECTED
+
+  Unique triple-check AOB (use wildcards for jbe targets):
+    FF 15 C4 A3 8B 00 85 C0 0F 86 ?? ?? ?? ??
+    FF 15 C4 A3 8B 00 85 C0 0F 86 ?? ?? ?? ??
+    FF 15 C4 A3 8B 00 85 C0 0F 86 ?? ?? ?? ??
+
+  Detection logic: If ScyllaHide GetTickCountHook=1 makes GetTickCount return 0,
+  then eax=0, jbe (jump if below or equal) fires because 0 <= 0 is true.
+  Normal GetTickCount returns system uptime in ms (never 0 after boot).
+
+  Major clusters (each address is first of 3 consecutive calls):
+    0x003AE215, 0x003AE2C5, 0x003AE4C1, 0x003AED98
+    0x003D1D85, 0x003D2527, 0x003DD67F
+    0x003EE05D, 0x003F2951
+    0x004A59E7, 0x004A5D5F, 0x004A6502, 0x004A8092, 0x004A80DD, 0x004A816F, 0x004A82D2
+    0x004C754D, 0x004C76E0, 0x004C806D, 0x004C820C, 0x004C9BD1, 0x004C9D7F, 0x004C9F35
+    0x004CA262, 0x004CAB09, 0x004CAB7E, 0x004CAC30, 0x004CB141, 0x004CB2B9, 0x004CB55D
+    0x004CBC54, 0x004CBDF3
+    0x004DD4FD, 0x004DD596, 0x004DD609, 0x004DDBEA, 0x004DDC71, 0x004DDCD1
+    0x004DDE91, 0x004DE17E, 0x004DE36F, 0x004DE5F2, 0x004DE692, 0x004DE6F9, 0x004DE765
+    0x004DE894, 0x004E15BB, 0x004E19C1, 0x004E2734, 0x004E290D, 0x004E2B90
+    0x004E77DD, 0x004E79A3, 0x004E7EF2, 0x004E8AF1, 0x004EA161, 0x004EA40A
+    0x00509057, 0x005090ED, 0x00509160, 0x005091D2
+    0x005093B8, 0x0050945B, 0x005098B4, 0x0050991A
+    0x00509B26, 0x00509CE0, 0x00509D41, 0x00509EC1, 0x00509F92
+    0x0050A10B, 0x0050A183, 0x0050A333, 0x0050A461
+    + scattered singles at 0x00136D13, 0x00162EC9, 0x002002F5, 0x0071xxxx
+
+  Total = 242 call sites = ~80 unique anticheat check locations (×3 each)
+
+===================================================================================
+3. GetCurrentDirectoryA Debugger Path Detection — 7 sites
+===================================================================================
+  Pointer: 0x008BA408 (RVA 0x78A408)
+  Call AOB: FF 15 08 A4 8B 00
+
+  Sites:
+    Gunz.exe+53607  (0x00166607)
+    Gunz.exe+3E79F4 (0x004179F4)
+    Gunz.exe+69871E (0x006A871E)
+    Gunz.exe+737D28 (0x00747D28)
+    Gunz.exe+77B328 (0x0078B328)
+    Gunz.exe+77C1F9 (0x0078C1F9)
+    Gunz.exe+77C348 (0x0078C348)
+
+  Logic: After IsDebuggerPresent, calls GetCurrentDirectoryA and checks if the
+  current working directory path contains debugger tool names (x64dbg, OllyDbg, CE).
+
+===================================================================================
+4. SetUnhandledExceptionFilter — 4 sites (linked to EXIT/TERMINATE chain)
+===================================================================================
+  Pointer: 0x008BA48C (RVA 0x78A48C)
+  Call AOB: FF 15 8C A4 8B 00
+
+  Sites:
+    Gunz.exe+7239FA (0x007739FA) — EXIT FUNCTION: SUEF(0) → TerminateProcess
+    Gunz.exe+74452D (0x0077452D) — in IsDebuggerPresent block
+    Gunz.exe+7445CE (0x007745CE) — in IsDebuggerPresent block
+    Gunz.exe+7E5421 (0x007F5421) — combined IsDebuggerPresent+SUEF check
+
+  CONFIRMED Exit/Terminate Function at Gunz.exe+7239F5:
+    push ebp
+    mov ebp, esp
+    push 0
+    call [SetUnhandledExceptionFilter]    ; SUEF(NULL) — remove handler
+    push [ebp+08]                          ; error code argument
+    call [0x8BA490]
+    push 0xC0000409                        ; STATUS_STACK_BUFFER_OVERRUN
+    call [GetCurrentProcess]               ; get own handle
+    push eax                               ; hProcess
+    call [0x8BA364]                        ; TerminateProcess(hSelf, 0xC0000409)
+
+  Unique AOB for this function:
+    6A 00 FF 15 8C A4 8B 00 FF 75 08 FF 15 90 A4 8B 00
+    68 09 04 00 C0 FF 15 38 A4 8B 00 50 FF 15 64 A3 8B 00
+
+  Logic: When anti-debug triggers, SUEF is called to remove any installed exception
+  handler, then TerminateProcess kills the process with exception code
+  0xC0000409 (STATUS_STACK_BUFFER_OVERRUN) — making intentional termination
+  look like a buffer overflow crash to evade analysis.
+
+===================================================================================
+5. VirtualQuery WPM Detection — 4 sites
+===================================================================================
+  Pointer: 0x008BA418 (RVA 0x78A418)
+  Call AOB: FF 15 18 A4 8B 00
+
+  Sites:
+    Gunz.exe+56E21  (0x00169E21)
+    Gunz.exe+788332 (0x00798332) — PRIMARY WPM DETECTION FUNCTION
+    Gunz.exe+7E4EF6 (0x007F4EF6)
+    Gunz.exe+7F84C6 (0x008084C6)
+
+  CONFIRMED WPM Detection Function at Gunz.exe+788322:
+    push eax                             ; lpBuffer on stack
+    push [ebp+08]                        ; lpAddress (parameter)
+    xorps xmm0, xmm0                     ; zero MEMORY_BASIC_INFORMATION
+    movups [ebp-1C], xmm0
+    movq [ebp-0C], xmm0
+    call [VirtualQuery]                  ; VirtualQuery(addr, &mbi)
+    test eax, eax
+    je fail                              ; if VQ failed → return 1 (detected)
+    test byte ptr [ebp-08], 0xEE         ; check mbi.Protect & 0xEE
+    mov ecx, 1
+    sete al                              ; al=1 if no weird RWX bits
+    test [ebp-08], 0x101                 ; check PAGE_NOACCESS|PAGE_GUARD
+    cmovne eax, ecx                      ; if guard page → eax=1 (detected)
+    ret
+
+  Unique AOB for this function:
+    50 FF 75 08 0F 57 C0 0F 11 45 E4 66 0F D6 45 F4
+    FF 15 18 A4 8B 00 85 C0 74 ?? F6 45 F8 EE B9 01 00 00 00
+
+  Detection targets:
+    0xEE mask → catches pages with unusual R/W/X combinations (RWX code caves,
+                VirtualProtect'd pages made executable)
+    0x101 mask → catches PAGE_NOACCESS (0x01) | PAGE_GUARD (0x100) used by
+                 debuggers for memory breakpoints and guard page detections
+
+===================================================================================
+6. Self-Code Integrity (ReadProcessMemory) — 23 GetCurrentProcess sites
+===================================================================================
+  Pointer (GetCurrentProcess): 0x008BA438 (RVA 0x78A438)
+  Call AOB: FF 15 38 A4 8B 00
+  RPM loaded dynamically via GetProcAddress (NOT in pointer table).
+
+  Key sites (GetCurrentProcess preceding RPM calls):
+    Gunz.exe+65FC5, +66CD9, +67C7A, +692D6, +6939E, +6941D, +69805
+    Gunz.exe+56xx cluster: +577F14, +577F2F
+    Gunz.exe+59xxxx cluster: +5A04D2, +5A06AC
+    Gunz.exe+63C8FC, +63C907 (paired)
+    Gunz.exe+773A0E (follows SUEF)
+    Gunz.exe+7913D8
+    Gunz.exe+7F553A (follows IsDebuggerPresent)
+    Gunz.exe+806477
+    Gunz.exe+82xxxx cluster: +822999, +823551, +829B5C, +829B64, +833989, +833999
+
+  Pattern: GetCurrentProcess() → push handle → ReadProcessMemory(handle, target_addr,
+  buffer, 6, &bytesRead) — reads 6 bytes of own .text section to detect INT3/NOP patches.
+  Multiple target addresses checked across the codebase.
+
+===================================================================================
+7. CreateFileW — 5 sites (includes Discord/pipe detection)
+===================================================================================
+  Pointer: 0x008BA458 (RVA 0x78A458)
+  Call AOB: FF 15 58 A4 8B 00
+
+  Sites:
+    Gunz.exe+3F9B8  (0x001529B8)
+    Gunz.exe+597BD2 (0x005A7BD2)
+    Gunz.exe+7F1B14 (0x00801B14)
+    Gunz.exe+80F94A (0x0081F94A)
+    Gunz.exe+810BB4 (0x00820BB4)
+
+  Discord pipe path "\\?\pipe\discord-ipc-0" NOT found as plain string — either
+  dynamically constructed or obfuscated. The named-pipe detection for Discord
+  overlay (CreateFileW → WaitNamedPipeW → PeekNamedPipeW) is still likely active
+  at these sites; the pipe name may be built at runtime.
+
+===================================================================================
+8. HWID Detection
+===================================================================================
+  Method: MachineGuid from HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid
+  Loaded via advapi32.dll at runtime (GetProcAddress — advapi32 NOT in static pointer table)
+  Anti-spoof: Compares against stored "LastValue"; mismatch triggers "Bypass attempt detected!"
+
+===================================================================================
+9. Process Enumeration (Anti-Cheat)
+===================================================================================
+  Sites use GetProcAddress-resolved function pointers:
+    - CreateToolhelp32Snapshot
+    - Process32First / Process32Next
+    - K32GetModuleBaseNameA / K32GetModuleFileNameExA
+    - OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid)
+
+  These are NOT resolved through the pointer table — called via function pointers
+  obtained from GetProcAddress at runtime, making them invisible to static IAT analysis.
+
+===================================================================================
+ScyllaHide Interaction Summary
+===================================================================================
+  PebBeingDebugged=1        → mitigates IsDebuggerPresent (4 sites)
+  GetTickCountHook=1        → DETECTED at 242 sites (jbe catches the 0-return)
+  NtQueryInformationProcess → not directly in IAT/pointer table (via GetProcAddress)
+  KiUserExceptionDispatcher → potentially caught by custom SUEF handlers
+  NtSetInformationThread    → HideFromDebugger not directly detectable via IAT
+
+===================================================================================
+Unique AOB Signatures for Automated Discovery
+===================================================================================
+  IsDebuggerPresent:
+    FF 15 00 A4 8B 00
+
+  GetTickCount triple-check:
+    FF 15 C4 A3 8B 00 85 C0 0F 86 ?? ?? ?? ?? FF 15 C4 A3 8B 00 85 C0 0F 86
+
+  IsDebuggerPresent + exit path (site 3):
+    85 C0 79 1C FF 15 00 A4 8B 00 85 C0 74 0B 68
+
+  IsDebuggerPresent + SUEF combined (site 4):
+    FF 15 00 A4 8B 00 6A 00 8B F8 FF 15 8C A4 8B 00
+
+  SUEF standalone:
+    6A 00 FF 15 8C A4 8B 00 FF 75 08
+
+  GetCurrentProcess → RPM pattern:
+    FF 15 38 A4 8B 00 50 FF 15 ?? ?? ?? ??
+
+  NOTE: Pointer table base address (0x008BA000) changes with ASLR. Use RVAs:
+  Pointer table RVA: 0x78A000
+  IsDebuggerPresent ptr RVA: 0x78A400
+  GetTickCount ptr RVA: 0x78A3C4
+  All FF 15 immediates are module-relative. For cross-session use:
+    ptr_addr = Gunz.exe + ptr_RVA

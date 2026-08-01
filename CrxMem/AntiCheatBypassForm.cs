@@ -655,7 +655,6 @@ namespace CrxMem
             AddBypassTest("NtReadVirtualMemory", "Direct NT API memory read", "Low");
             AddBypassTest("NtWriteVirtualMemory", "Direct NT API memory write", "Low");
             AddBypassTest("Unsigned Driver Load", "Attempt to load test driver", "Medium");
-            AddBypassTest("ObCallback Tampering", "Simulate callback removal", "High");
             AddBypassTest("MmCopyVirtualMemory", "Kernel-mode memory access", "High");
             AddBypassTest("Hypervisor Detection", "Check for virtualization", "Low");
             AddBypassTest("Hardware Breakpoints", "DR register manipulation", "Medium");
@@ -824,7 +823,6 @@ namespace CrxMem
                 "NtReadVirtualMemory" => "Tests if direct NT API calls for memory reading are detected",
                 "NtWriteVirtualMemory" => "Tests if direct NT API calls for memory writing are detected",
                 "Unsigned Driver Load" => "Attempts to load the test driver to check if unsigned drivers are blocked",
-                "ObCallback Tampering" => "Simulates removal of ObRegisterCallbacks protection",
                 "MmCopyVirtualMemory" => "Tests kernel-mode memory access via MmCopyVirtualMemory",
                 "Hypervisor Detection" => "Checks for hypervisor/virtualization presence using CPUID",
                 "Hardware Breakpoints" => "Tests manipulation of debug registers (DR0-DR7)",

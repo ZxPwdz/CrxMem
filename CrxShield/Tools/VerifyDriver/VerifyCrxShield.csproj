@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>VerifyCrxShield</AssemblyName>
+    <RootNamespace>CrxShield.Verify</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reuse the live protocol implementation from the main app -->
+    <Compile Include="..\..\..\CrxMem\CrxDriverController.cs" Link="CrxDriverController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copies CrxMem.DebugTarget.exe next to the verifier on build -->
+    <ProjectReference Include="..\..\..\CrxMem.DebugTarget\CrxMem.DebugTarget.csproj" />
+  </ItemGroup>
+
+</Project>

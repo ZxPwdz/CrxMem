@@ -49,16 +49,21 @@ namespace CrxMem
         private DispatcherTimer? _autoAttachTimer;
         private DispatcherTimer? _suspendTimer;
         private DispatcherTimer? _updateTimer;
+        private DispatcherTimer? _driverStatusTimer;
         private FastProcessWatcher? _fastProcessWatcher;
         private readonly ITableSerializer _tableSerializer = new JsonTableSerializer();
         private bool _liveUpdatesEnabled = true;
         private HwndSource? _windowSource;
         private readonly HwndSourceHook _windowHook;
+        private readonly MainWindowLayoutStore _mainWindowLayoutStore;
+        private MainWindowLayoutSettings _mainWindowLayout = new();
+        private object? _maximizeIcon;
 
         // Singleton form instances
         private MemoryView.MemoryViewForm? _memoryViewForm;
         private MemoryView.Wpf.Views.MemoryViewWindow? _memoryViewWpfWindow;
         private AntiCheatBypassForm? _acBypassForm;
+        private WatchdogHunterWindow? _watchdogHunterWindow;
 
         // WPF ListView data collections
         private ObservableCollection<ScanResultItem> scanResults = new();
@@ -72,15 +77,19 @@ namespace CrxMem
         // CONSTRUCTOR
         // ═══════════════════════════════════════════════════════════════════
         
-        public MainWindow()
+        public MainWindow() : this(new MainWindowLayoutStore(), initializeRuntimeServices: true)
         {
+        }
+
+        internal MainWindow(MainWindowLayoutStore layoutStore, bool initializeRuntimeServices)
+        {
+            _mainWindowLayoutStore = layoutStore ?? throw new ArgumentNullException(nameof(layoutStore));
             _windowHook = WndHook;
             InitializeComponent();
+            _maximizeIcon = btnMaximize.Content;
             
             // Set window title with version
-            string version = System.Windows.Forms.Application.ProductVersion;
-            if (version.EndsWith(".0.0")) version = version[..^4];
-            else if (version.EndsWith(".0")) version = version[..^2];
+            string version = GetDisplayVersion();
             txtWindowTitle.Text = $"CrxMem v{version}";
             Title = $"CrxMem v{version}";
 
@@ -88,17 +97,22 @@ namespace CrxMem
             lvFoundAddressesWpf.ItemsSource = scanResults;
             lvAddressListWpf.ItemsSource = addressEntries;
 
-            // Initialize timers
-            InitializeTimers();
+            if (initializeRuntimeServices)
+            {
+                InitializeTimers();
+                ApplySettings();
+                CheckExistingDriverConnection();
 
-            // Apply settings
-            ApplySettings();
-
-            // Check for existing driver
-            CheckExistingDriverConnection();
+                // Keep the driver status panel in sync with live state; the Settings -> CrxShield tab
+                // can connect/disconnect/toggle kernel mode at any time (cheap handle check, no IOCTLs).
+                _driverStatusTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+                _driverStatusTimer.Tick += (s, e) => CheckExistingDriverConnection();
+                _driverStatusTimer.Start();
+            }
 
             // Load images/logos
             LoadResources();
+            RestoreMainWindowLayout();
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -115,12 +129,14 @@ namespace CrxMem
 
         protected override void OnClosed(EventArgs e)
         {
+            SaveMainWindowLayout();
             _scanner?.CancelScan();
 
             _freezeTimer?.Stop();
             _autoAttachTimer?.Stop();
             _suspendTimer?.Stop();
             _updateTimer?.Stop();
+            _driverStatusTimer?.Stop();
 
             _fastProcessWatcher?.Dispose();
             _fastProcessWatcher = null;
@@ -177,6 +193,8 @@ namespace CrxMem
         private void Maximize_Click(object sender, RoutedEventArgs e)
         {
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            btnMaximize.ToolTip = WindowState == WindowState.Maximized ? "Restore" : "Maximize";
+            Dispatcher.BeginInvoke(() => btnMaximize.Content = _maximizeIcon, DispatcherPriority.Loaded);
             btnMaximize.Content = WindowState == WindowState.Maximized ? "❐" : "□";
         }
 
@@ -225,11 +243,11 @@ namespace CrxMem
                 if (_process.Open(process.Id))
                 {
                     txtProcessName.Text = $"{process.ProcessName} - PID: {process.Id} ({(_process.Is64Bit ? "64" : "32")}-bit)";
-                    txtProcessName.Foreground = System.Windows.Media.Brushes.MediumSeaGreen;
+                    txtProcessName.Foreground = (System.Windows.Media.Brush)FindResource("Main.Success");
+                    processStatusDot.Fill = (System.Windows.Media.Brush)FindResource("Main.Success");
+                    processStatusDot.Stroke = (System.Windows.Media.Brush)FindResource("Main.Success");
 
-                    string ver = System.Windows.Forms.Application.ProductVersion;
-                    if (ver.EndsWith(".0.0")) ver = ver[..^4];
-                    else if (ver.EndsWith(".0")) ver = ver[..^2];
+                    string ver = GetDisplayVersion();
                     txtWindowTitle.Text = $"CrxMem v{ver} - {process.ProcessName} (PID: {process.Id})";
 
                     _scanner = new MemoryScanner(_process);
@@ -247,13 +265,48 @@ namespace CrxMem
                 }
                 else
                 {
+                    ShowDisconnectedProcessState();
                     System.Windows.MessageBox.Show("Failed to open process. Try running as Administrator.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
+                ShowDisconnectedProcessState();
                 System.Windows.MessageBox.Show($"Error opening process: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void ShowDisconnectedProcessState()
+        {
+            StopSuspendTimer();
+            _scanner?.CancelScan();
+            _scanner = null;
+            _process?.Dispose();
+            _process = null;
+
+            string version = GetDisplayVersion();
+            txtWindowTitle.Text = $"CrxMem v{version}";
+            txtProcessName.Text = "No process selected";
+            txtProcessName.Foreground = (System.Windows.Media.Brush)FindResource("Main.TextMuted");
+            processStatusDot.Fill = System.Windows.Media.Brushes.Transparent;
+            processStatusDot.Stroke = (System.Windows.Media.Brush)FindResource("Main.TextMuted");
+            cmbModule.Items.Clear();
+            cmbModule.Items.Add("All Modules");
+            cmbModule.SelectedIndex = 0;
+            btnFirstScan.IsEnabled = false;
+            btnNextScan.IsEnabled = false;
+            btnCancelScan.IsEnabled = false;
+            btnUndoScan.IsEnabled = false;
+            txtFoundCount.Text = "Found: 0";
+        }
+
+        private static string GetDisplayVersion()
+        {
+            Version? version = typeof(MainWindow).Assembly.GetName().Version;
+            if (version == null) return "1.2.0";
+            return version.Revision > 0
+                ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}"
+                : $"{version.Major}.{version.Minor}.{Math.Max(0, version.Build)}";
         }
 
         private void PopulateModuleDropdown()
@@ -985,6 +1038,24 @@ namespace CrxMem
 
         private void UpdateTimer_Tick(object? sender, EventArgs e)
         {
+            if (_process?.Target != null)
+            {
+                try
+                {
+                    if (_process.Target.HasExited)
+                    {
+                        ShowDisconnectedProcessState();
+                        txtStatus.Text = "Selected process exited.";
+                        return;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    ShowDisconnectedProcessState();
+                    return;
+                }
+            }
+
             if (_process == null || !_liveUpdatesEnabled) return;
 
             Dispatcher.Invoke(() =>
@@ -1301,6 +1372,58 @@ namespace CrxMem
             }
         }
 
+        private void RestoreMainWindowLayout()
+        {
+            _mainWindowLayout = _mainWindowLayoutStore.Load();
+            System.Windows.Rect workArea = SystemParameters.WorkArea;
+            Width = Math.Clamp(_mainWindowLayout.WindowWidth, MinWidth, Math.Max(MinWidth, workArea.Width));
+            Height = Math.Clamp(_mainWindowLayout.WindowHeight, MinHeight, Math.Max(MinHeight, workArea.Height));
+            addressListRow.Height = new GridLength(_mainWindowLayout.AddressListHeight);
+
+            if (_mainWindowLayout.WindowLeft is double left &&
+                _mainWindowLayout.WindowTop is double top &&
+                left + 80 >= workArea.Left && left <= workArea.Right - 80 &&
+                top + 48 >= workArea.Top && top <= workArea.Bottom - 48)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Left = left;
+                Top = top;
+            }
+
+            if (_mainWindowLayout.Maximized)
+            {
+                Loaded += (_, _) =>
+                {
+                    WindowState = WindowState.Maximized;
+                    btnMaximize.ToolTip = "Restore";
+                };
+            }
+        }
+
+        private void SaveMainWindowLayout()
+        {
+            try
+            {
+                System.Windows.Rect bounds = WindowState == WindowState.Normal
+                    ? new System.Windows.Rect(Left, Top, ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height)
+                    : RestoreBounds;
+
+                _mainWindowLayoutStore.Save(new MainWindowLayoutSettings
+                {
+                    WindowWidth = Math.Max(MinWidth, bounds.Width),
+                    WindowHeight = Math.Max(MinHeight, bounds.Height),
+                    WindowLeft = bounds.Left,
+                    WindowTop = bounds.Top,
+                    Maximized = WindowState == WindowState.Maximized,
+                    AddressListHeight = addressListRow.ActualHeight > 0 ? addressListRow.ActualHeight : addressListRow.Height.Value
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MainWindowLayout] Could not save layout: {ex.Message}");
+            }
+        }
+
         private void OpenOrFocusMemoryView(IntPtr startAddress)
         {
             if (_process == null) return;
@@ -1556,6 +1679,42 @@ namespace CrxMem
             var form = new PEAnalysisForm(_process);
             form.Show();
         }
+        private void WatchdogHunter_Click(object sender, RoutedEventArgs e)
+        {
+            if (_process == null || !_process.IsOpen)
+            {
+                System.Windows.MessageBox.Show(this,
+                    "Select a process in the main CrxMem window before opening the Watchdog Hunter.",
+                    "No process selected", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_watchdogHunterWindow is { IsLoaded: true })
+            {
+                if (_watchdogHunterWindow.WindowState == WindowState.Minimized)
+                    _watchdogHunterWindow.WindowState = WindowState.Normal;
+                _watchdogHunterWindow.Activate();
+                return;
+            }
+
+            try
+            {
+                _watchdogHunterWindow = new WatchdogHunterWindow(_process) { Owner = this };
+                _watchdogHunterWindow.Closed += (_, _) => _watchdogHunterWindow = null;
+                _watchdogHunterWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                WatchdogHunterWindow.DebugLog("WatchdogHunter_Click: window construction failed", ex);
+                _watchdogHunterWindow = null;
+                System.Windows.MessageBox.Show(this,
+                    "The Watchdog Hunter window failed to open:" + Environment.NewLine + Environment.NewLine +
+                    ex.Message + Environment.NewLine + Environment.NewLine +
+                    "Details were written to " + WatchdogHunterWindow.DebugLogPath,
+                    "Watchdog Hunter", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void DllInjectionTest_Click(object sender, RoutedEventArgs e)
         {
             var form = new DllInjectionTestForm(_process);

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>ThreadAudit</AssemblyName>
+    <RootNamespace>CrxShield.ThreadAudit</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reuse the live protocol implementation from the main app -->
+    <Compile Include="..\..\..\CrxMem\CrxDriverController.cs" Link="CrxDriverController.cs" />
+  </ItemGroup>
+
+</Project>

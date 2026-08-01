@@ -17,6 +17,8 @@ namespace CrxMem.MemoryView
         private IntPtr _currentAddress;
         private bool _is64Bit;
         private System.Windows.Forms.Timer? _registerUpdateTimer;
+        private System.Windows.Forms.Timer? _driverStatusTimer;
+        private string? _driverVersionText;
         private uint _activeThreadId;
 
         public MemoryViewForm(ProcessAccess process, IntPtr startAddress = default)
@@ -152,6 +154,13 @@ namespace CrxMem.MemoryView
                 _registerUpdateTimer = null;
             }
 
+            if (_driverStatusTimer != null)
+            {
+                _driverStatusTimer.Stop();
+                _driverStatusTimer.Dispose();
+                _driverStatusTimer = null;
+            }
+
             base.OnFormClosed(e);
         }
 
@@ -199,6 +208,13 @@ namespace CrxMem.MemoryView
             _registerUpdateTimer = new System.Windows.Forms.Timer { Interval = 100 };
             _registerUpdateTimer.Tick += RegisterUpdateTimer_Tick;
             _registerUpdateTimer.Start();
+
+            // Kernel-driver status indicator: poll live global state (no IOCTLs on the timer)
+            UpdateDriverStatusIndicator();
+            _driverStatusTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _driverStatusTimer.Tick += (s, e) => UpdateDriverStatusIndicator();
+            _driverStatusTimer.Start();
+            Activated += (s, e) => UpdateDriverStatusIndicator();
 
             // Default to first thread
             if (_process != null)
@@ -416,6 +432,48 @@ namespace CrxMem.MemoryView
             if (version.EndsWith(".0.0")) version = version[..^4];
             else if (version.EndsWith(".0")) version = version[..^2];
             this.Text = $"Memory View - CrxMem v{version}";
+        }
+
+        /// <summary>
+        /// Refresh the kernel-driver status label from live global state.
+        /// Polls AntiCheatBypassForm.UseKernelMode + DriverController.IsConnected()
+        /// (cheap handle check). The driver version is queried via IOCTL only once,
+        /// when the indicator first observes a connected state.
+        /// </summary>
+        private void UpdateDriverStatusIndicator()
+        {
+            var controller = AntiCheatBypassForm.DriverController;
+            bool connected = AntiCheatBypassForm.UseKernelMode
+                && controller != null
+                && controller.IsConnected();
+
+            if (connected)
+            {
+                if (_driverVersionText == null)
+                {
+                    _driverVersionText = string.Empty;
+                    try
+                    {
+                        if (controller!.GetVersion(out uint major, out uint minor, out uint build))
+                            _driverVersionText = $" v{major}.{minor}.{build}";
+                    }
+                    catch
+                    {
+                        // Version is cosmetic; never let an IOCTL hiccup break the status strip.
+                    }
+                }
+
+                lblStatusDriver.Text = $"● DRIVER: KERNEL MODE{_driverVersionText}";
+                lblStatusDriver.ForeColor = ThemeManager.StatusGreen;
+                lblStatusDriver.ToolTipText = "Memory read/write operations route through the CrxShield kernel driver";
+            }
+            else
+            {
+                _driverVersionText = null; // re-query version on the next connect
+                lblStatusDriver.Text = "● Driver: user-mode";
+                lblStatusDriver.ForeColor = ThemeManager.ForegroundDim;
+                lblStatusDriver.ToolTipText = "Memory operations use standard Win32 APIs";
+            }
         }
 
         private void BtnGoto_Click(object? sender, EventArgs e)

@@ -24,6 +24,15 @@ public sealed class MemoryViewLayoutSettings
     public List<string> RecentExpressions { get; set; } = new();
     public List<string> RecentHexExpressions { get; set; } = new();
     public bool MicrosoftSymbolServerEnabled { get; set; }
+    public bool BookmarkManagerSelected { get; set; }
+    public string BookmarkSearch { get; set; } = string.Empty;
+    public int BookmarkTypeFilter { get; set; }
+    public int BookmarkStateFilter { get; set; }
+    public bool BookmarkPinnedFirst { get; set; }
+    public string BookmarkGroupFilter { get; set; } = string.Empty;
+    public string BookmarkTagFilter { get; set; } = string.Empty;
+    public string BookmarkColorFilter { get; set; } = string.Empty;
+    public List<double> BookmarkColumnWidths { get; set; } = new();
 }
 
 public interface IMemoryViewLayoutStore

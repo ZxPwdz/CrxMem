@@ -269,6 +269,159 @@ namespace CrxMem.Core
             return LoadDriver();
         }
 
+        // Service states not covered above
+        private const uint SERVICE_START_PENDING = 0x00000002;
+        private const uint SERVICE_STOP_PENDING = 0x00000003;
+
+        /// <summary>
+        /// Restarts the driver in place: if the service is running, stops it and
+        /// waits (bounded) for STOPPED, then starts it again so the kernel picks
+        /// up the current CrxShield.sys image. Unlike <see cref="ReloadDriver"/>
+        /// this keeps the existing service registration (no delete/recreate),
+        /// mirroring Tools\Restart-CrxShield.cmd.
+        /// </summary>
+        /// <param name="stopTimeoutMs">Maximum time to wait for the service to reach STOPPED.</param>
+        /// <param name="startWin32Error">Win32 error from StartService when the start step fails (0 otherwise).</param>
+        public bool RestartDriver(int stopTimeoutMs, out int startWin32Error)
+        {
+            startWin32Error = 0;
+            IntPtr scManager = IntPtr.Zero;
+            IntPtr service = IntPtr.Zero;
+
+            try
+            {
+                scManager = OpenSCManager(null, null, SC_MANAGER_ALL_ACCESS);
+                if (scManager == IntPtr.Zero)
+                {
+                    LastError = $"Failed to open Service Control Manager: {GetLastErrorMessage()}";
+                    return false;
+                }
+
+                service = OpenService(scManager, ServiceName, SERVICE_ALL_ACCESS);
+                if (service == IntPtr.Zero)
+                {
+                    LastError = $"Driver service '{ServiceName}' is not installed";
+                    return false;
+                }
+
+                if (!QueryServiceStatus(service, out SERVICE_STATUS status))
+                {
+                    LastError = $"Failed to query driver service: {GetLastErrorMessage()}";
+                    return false;
+                }
+
+                // Step 1: stop if running (or still starting)
+                if (status.dwCurrentState == SERVICE_RUNNING || status.dwCurrentState == SERVICE_START_PENDING)
+                {
+                    if (!ControlService(service, SERVICE_CONTROL_STOP, out status))
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        if (error != 1062) // ERROR_SERVICE_NOT_ACTIVE
+                        {
+                            LastError = $"Failed to stop driver (error {error}): {GetLastErrorMessage()}";
+                            return false;
+                        }
+                    }
+                }
+
+                // Bounded wait for STOPPED (also covers an in-progress STOP_PENDING)
+                if (status.dwCurrentState != SERVICE_STOPPED)
+                {
+                    var sw = Stopwatch.StartNew();
+                    while (true)
+                    {
+                        if (!QueryServiceStatus(service, out status))
+                        {
+                            LastError = $"Failed to query driver service: {GetLastErrorMessage()}";
+                            return false;
+                        }
+
+                        if (status.dwCurrentState == SERVICE_STOPPED)
+                        {
+                            break;
+                        }
+
+                        if (sw.ElapsedMilliseconds > stopTimeoutMs)
+                        {
+                            LastError = $"Timed out after {stopTimeoutMs / 1000}s waiting for the driver to stop " +
+                                        "(close anything holding \\\\.\\CrxShield and retry)";
+                            return false;
+                        }
+
+                        System.Threading.Thread.Sleep(200);
+                    }
+                }
+
+                // Step 2: start with the current image
+                if (!StartService(service, 0, null))
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    startWin32Error = error;
+                    if (error != 1056) // ERROR_SERVICE_ALREADY_RUNNING
+                    {
+                        LastError = error == 577 // ERROR_INVALID_IMAGE_HASH
+                            ? "Failed to start driver (error 577): kernel Code Integrity rejected the driver " +
+                              "signature. Enable testsigning (Tools\\Start-CrxShield.cmd) and reboot, then retry."
+                            : $"Failed to start driver (error {error}): {GetLastErrorMessage()}";
+                        return false;
+                    }
+                }
+
+                LastError = null;
+                return true;
+            }
+            finally
+            {
+                if (service != IntPtr.Zero) CloseServiceHandle(service);
+                if (scManager != IntPtr.Zero) CloseServiceHandle(scManager);
+            }
+        }
+
+        /// <summary>
+        /// Queries the detailed SCM state of the driver service
+        /// </summary>
+        public DriverServiceState GetServiceState()
+        {
+            IntPtr scManager = IntPtr.Zero;
+            IntPtr service = IntPtr.Zero;
+
+            try
+            {
+                scManager = OpenSCManager(null, null, SC_MANAGER_ALL_ACCESS);
+                if (scManager == IntPtr.Zero)
+                {
+                    LastError = $"Failed to open Service Control Manager: {GetLastErrorMessage()}";
+                    return DriverServiceState.Unknown;
+                }
+
+                service = OpenService(scManager, ServiceName, SERVICE_QUERY_STATUS);
+                if (service == IntPtr.Zero)
+                {
+                    return DriverServiceState.NotInstalled;
+                }
+
+                if (!QueryServiceStatus(service, out SERVICE_STATUS status))
+                {
+                    LastError = $"Failed to query driver service: {GetLastErrorMessage()}";
+                    return DriverServiceState.Unknown;
+                }
+
+                return status.dwCurrentState switch
+                {
+                    SERVICE_RUNNING => DriverServiceState.Running,
+                    SERVICE_STOPPED => DriverServiceState.Stopped,
+                    2 => DriverServiceState.StartPending,   // SERVICE_START_PENDING
+                    3 => DriverServiceState.StopPending,    // SERVICE_STOP_PENDING
+                    _ => DriverServiceState.Unknown
+                };
+            }
+            finally
+            {
+                if (service != IntPtr.Zero) CloseServiceHandle(service);
+                if (scManager != IntPtr.Zero) CloseServiceHandle(scManager);
+            }
+        }
+
         /// <summary>
         /// Checks if the driver is currently loaded
         /// </summary>
@@ -484,6 +637,25 @@ namespace CrxMem.Core
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// Detailed SCM state of the driver service
+    /// </summary>
+    public enum DriverServiceState
+    {
+        /// <summary>State could not be determined (see LastError)</summary>
+        Unknown,
+        /// <summary>Driver service is not registered in the SCM</summary>
+        NotInstalled,
+        /// <summary>Driver service exists but is stopped</summary>
+        Stopped,
+        /// <summary>Driver service is starting</summary>
+        StartPending,
+        /// <summary>Driver service is loaded and running</summary>
+        Running,
+        /// <summary>Driver service is stopping</summary>
+        StopPending
     }
 
     /// <summary>
