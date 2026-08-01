@@ -1,120 +1,153 @@
-# CrxMem - Cheat Engine-inspired memory analysis tool
+# CrxMem
 
 **Created by ZxPwd**
 
 **Discord: zxpwd**
 
-An open-source memory scanner and analysis project for Windows, inspired by Cheat Engine. This repository contains the main application and its experimental companion projects.
+CrxMem is a Windows memory scanner and analysis project inspired by Cheat Engine. The repository now contains the redesigned compact WPF main application, a newer WPF Memory View, the retained Legacy Memory Viewer, Auto Assembler work, bookmark tooling, Watchdog Hunter research tooling, and optional kernel-driver experiments.
 
 > [!WARNING]
-> CrxMem is pre-release research software. User-mode scanning is the primary development focus; debugger, injection, and kernel-driver features remain experimental and can destabilize target processes or Windows.
+> CrxMem is pre-release research software. User-mode scanning is the most stable path today. Debugger, injection, anti-cheat research, and kernel-driver features remain experimental and can destabilize target processes or Windows.
 
 ![CrxMem Preview](CrxMem/preview.png)
 ![CrxMem Preview](preview2.png)
+
 ---
 
-## IMPORTANT: Project Status
+## Project Status
 
-> **This project is currently under active development.** Many features are still being implemented, refined, or are in experimental stages. Expect bugs and incomplete functionality.
+The project has moved well beyond a basic scanner. The current build includes a redesigned main UI, two Memory View routes, bookmark infrastructure, Auto Assembler work, and optional driver-assisted features, but not every advanced debugging feature is fully complete yet.
 
-### Known Issues & Work In Progress
+### Current feature status
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **User-mode scanner** | Working, pre-release | Exact, comparison, undo, writable-region, and AOB paths have automated coverage |
-| **Memory Viewer** | Working, pre-release | Hex view, disassembly, navigation, references, modules, memory map, and export; no attached debugger yet |
-| **Native table files** | Working, pre-release | Versioned `.crxct` JSON with legacy CrxMem `.ct` JSON import |
-| **Find What Writes/Accesses** | Experimental | Detection may miss some memory accesses |
-| **Debugger and breakpoints** | Prototype | Attachment, run control, stepping, and reliable breakpoint management are not complete |
-| **Lua Engine** | Incomplete | Core functions work; the full API and monitor injection are not finished |
-| **Driver and injection tools** | Experimental | Isolated research environments only; not covered by the managed CI build |
+| Area | Status | Notes |
+|------|--------|-------|
+| **Scanner / Address List** | Working, pre-release | Exact/comparison scans, undo, filters, writable-region scanning, and address-list workflows are part of the active WPF shell |
+| **Main WPF shell** | Working, pre-release | Compact dark-blue redesign with process status, scan workspace, table workflow, and settings integration |
+| **Memory View (WPF)** | Working, pre-release | Disassembly, hex dump, navigation, modules, memory map, patch pane, Auto Assembler entry point, and Bookmark Manager |
+| **Memory Viewer (Legacy)** | Working, retained | Previous WinForms/GDI+ viewer remains available as a fallback and comparison route |
+| **Bookmarks / comments** | Working, evolving | Docked Bookmark Manager, annotation persistence, edit/move/rebind/import/export paths |
+| **Auto Assembler** | Experimental | UI and transactional script infrastructure are present, but compatibility is still incomplete |
+| **Debugger / breakpoints** | Prototype | Attach/run-control/stepping work exists, but this is not yet a parity-complete attached debugger |
+| **Watchdog Hunter** | Experimental research tool | Thread census and integrity-thread hunting workflows for isolated research use |
+| **Lua engine** | Incomplete | Core pieces exist; full compatibility surface is still under development |
+| **CrxShield driver path** | Experimental | Optional kernel-assisted operations and tooling, not covered by the managed CI build |
 
-### Upcoming Features
-- Attached debugger with run control and breakpoint support
-- Enhanced memory access detection reliability
-- Comprehensive Lua scripting API
-- Improved pointer scanner
-- Memory region comparison
-- Advanced signature scanning
-- Structure dissector
-- And much more...
+### Important notes
+
+- `Tools > Memory View (WPF)` opens the newer Memory View workspace.
+- `Tools > Memory Viewer (Legacy)` opens the retained older viewer.
+- The Legacy viewer is still intentionally shipped because it remains useful while newer Memory View features continue to mature.
+- Kernel and anti-cheat research features should be treated as isolated-lab functionality, not everyday-safe defaults.
 
 ---
 
 ## Repository Structure
 
-This repository contains the managed application and two experimental native companions:
+This repository now includes the main application plus several experimental companion projects and research folders:
 
 ```text
 CrxMem/
-|-- CrxMem/           # Managed WPF application
-|-- CrxMem.Tests/     # Managed scanner, table, and settings tests
-|-- CrxShield/        # Experimental kernel driver
-`-- VEHDebugDll/      # Experimental VEH debugging DLL
+|-- CrxMem/                 # Main C# application (WPF shell + legacy WinForms components)
+|-- CrxMem.Tests/           # Managed test suite
+|-- CrxShield/              # Experimental kernel driver
+|-- CrxShieldClient/        # Driver client/native interop work
+|-- VEHDebugDll/            # VEH-based debugging experiments
+|-- FxpStrip/               # Native anti-cheat / hook research work
+|-- GunzAnalysis/           # Analysis notes, scripts, and research artifacts
+`-- Documentation/          # Plans, design references, and implementation notes
 ```
 
 | Project | Description | Language |
 |---------|-------------|----------|
-| **CrxMem** | Main GUI application for memory scanning, editing, and analysis | C# (.NET 8.0) |
-| **CrxShield** | Windows kernel driver for kernel-level memory access | C (WDK) |
-| **VEHDebugDll** | Vectored Exception Handler DLL for usermode debugging | C++ |
+| **CrxMem** | Main GUI application for scanning, editing, analysis, Memory View, and table workflows | C# (.NET 8) |
+| **CrxShield** | Experimental Windows kernel driver for kernel-assisted memory access and thread tooling | C / WDK |
+| **CrxShieldClient** | Client-side driver access helpers and native interop | C++ / C# |
+| **VEHDebugDll** | VEH-based debugging and breakpoint experiments | C++ |
+| **FxpStrip** | Native reversing and anti-cheat research project | C++ |
+| **GunzAnalysis** | Notes, scripts, and reverse-engineering artifacts | Mixed |
 
 ---
 
-## CrxMem (Main Application)
+## CrxMem Main Application
 
-The user-mode memory scanner and analysis application with a dark-themed WPF shell.
+The main application now uses a dark-themed WPF shell with a compact scanner-first layout while still keeping selected legacy components where they remain useful.
 
-### Features
-- **Memory Scanning** - Multiple scan types (exact, increased, decreased, changed, unknown, etc.)
-- **Value Types** - Byte, 2/4/8 Bytes, Float, Double, String, AOB
-- **Memory Editing** - Real-time value modification and freezing
-- **Memory View** - Hex editor with disassembly
-- **PE Analysis** - Analyze executables, imports, exports
-- **Lua Scripting** - Automate tasks (work in progress)
-- **Debugging prototypes** - Hardware-breakpoint and VEH experiments (not a complete attached debugger)
+### Main UI highlights
 
-### Tech Stack
-- .NET 8.0 (WPF + WinForms)
-- [Iced](https://github.com/icedland/iced) - x86/x64 disassembler
-- [NLua](https://github.com/NLua/NLua) - Lua scripting
-- [ReaLTaiizor](https://github.com/Developer-Flavor/ReaLTaiizor) - Modern UI controls
+- Compact redesigned main window optimized for smaller screens
+- Process-aware header with runtime process status
+- Scan Results and Address List in virtualized WPF DataGrids
+- Built-in access to Memory View, Legacy Memory Viewer, Lua, PE analysis, Watchdog Hunter, and Settings
+- Persistent layout and settings migration support
+
+### Scanner and table features
+
+- Exact, increased, decreased, changed, unchanged, unknown, between, and AOB scan workflows
+- Value types including Byte, 2/4/8 Bytes, Float, Double, String, and AOB
+- Address-list editing, freezing, save/load, and manual address entry
+- Versioned `.crxct` table format with legacy CrxMem `.ct` JSON import support
+
+### Memory analysis features
+
+- **Memory View (WPF)**:
+  - disassembly view
+  - hex dump
+  - stack/watch/breakpoints/call stack/memory map/modules/threads panes
+  - patch editor
+  - Auto Assembler entry point
+  - Bookmark Manager workspace
+- **Memory Viewer (Legacy)**:
+  - retained WinForms/GDI+ path
+  - useful fallback during ongoing WPF debugger and Memory View development
+
+### Research and advanced tooling
+
+- Bookmark/comment annotations with manager workflow
+- Auto Assembler editor and preview pipeline
+- PE analysis
+- Lua integration work
+- Watchdog Hunter thread-analysis workflow
+- Driver-aware memory operations when CrxShield is connected and enabled
+
+### Tech stack
+
+- .NET 8.0
+- WPF and WinForms
+- [Iced](https://github.com/icedland/iced) for x86/x64 disassembly
+- [NLua](https://github.com/NLua/NLua) for Lua integration work
+- [ReaLTaiizor](https://github.com/Developer-Flavor/ReaLTaiizor) for selected UI controls
 
 ---
 
-## CrxShield (Kernel Driver)
+## CrxShield
 
-Windows kernel driver providing enhanced memory access capabilities.
+CrxShield is the repository's experimental kernel-driver track for research builds that need kernel-assisted memory access or thread tooling.
 
-### Features
-- Kernel-level memory read/write
+### Current driver-related work
+
+- Kernel-level read/write support
 - Process base address retrieval
-- Kernel callback enumeration and removal
-- Driver hiding (experimental)
+- Thread enumeration support used by research tooling
+- Driver management and restart tooling
+- Verification helpers and setup scripts under `CrxShield/Tools`
 
-### Warning
-Kernel drivers can cause system instability (BSOD). Test on isolated systems only.
+### Driver warning
+
+Kernel drivers can cause system instability, startup failures, or BSODs. Test only on isolated systems or disposable environments.
 
 ---
 
-## VEHDebugDll (Debugging Library)
+## VEHDebugDll
 
-Vectored Exception Handler based debugging DLL for injection into target processes.
+`VEHDebugDll` contains vectored-exception-handler debugging experiments used for breakpoint and access-monitor research.
 
-### Features
-- Hardware breakpoints (DR0-DR3)
+### Includes
+
+- Hardware breakpoint experiments
 - Memory access monitoring
-- Shared memory IPC with CrxMem
-- Lock-free, thread-safe operations
-
----
-
-## Requirements
-
-- **OS:** Windows 10/11 (64-bit)
-- **.NET:** .NET 8.0 Runtime (for CrxMem)
-- **WDK:** Windows Driver Kit (for building CrxShield)
-- **Visual Studio:** 2022 with C++ and .NET workloads
+- Shared-memory IPC concepts
+- Lock-free/event-driven debugging experiments
 
 ---
 
@@ -126,114 +159,113 @@ Vectored Exception Handler based debugging DLL for injection into target process
 git clone https://github.com/ZxPwdz/CrxMem.git
 cd CrxMem
 dotnet restore CrxMem.sln
-dotnet build CrxMem.sln --configuration Release --no-restore
+dotnet build CrxMem.sln -c Release --no-restore
 ```
 
-Authentication is not required to clone the public repository. Contributors should use Git Credential Manager, GitHub CLI browser login, or SSH when pushing; never put a token in a command or remote URL.
+Managed output:
 
-### CrxMem (Main Application)
-```bash
-cd CrxMem
-dotnet build -c Release
+```text
+CrxMem\bin\Release\net8.0-windows\
 ```
-Output: `CrxMem/bin/Release/net8.0-windows/`
 
-### CrxShield (Kernel Driver)
-1. Install Windows Driver Kit (WDK)
-2. Open `CrxShield/CrxShield.sln` in Visual Studio
-3. Build in Release mode
-4. Enable test signing: `bcdedit /set testsigning on`
+Authentication is not required to clone the public repository. Contributors should use Git Credential Manager, GitHub CLI browser login, or SSH when pushing. Never place a token in a command, remote URL, script, or committed file.
+
+### CrxShield driver
+
+1. Install the Windows Driver Kit.
+2. Open `CrxShield/CrxShield.vcxproj` or the solution in Visual Studio 2022.
+3. Build the driver in Release mode.
+4. If using test-signed builds, enable testsigning and reboot before loading the driver.
 
 ### VEHDebugDll
-```bash
-cd VEHDebugDll
-# Using Visual Studio
-Open VEHDebug64.vcxproj and build Release x64
 
-# Or using CMake
-mkdir build64 && cd build64
-cmake .. -A x64
-cmake --build . --config Release
-```
+Build the Visual Studio project in the matching architecture you want to test.
 
 ---
 
 ## Installation
 
-### From Release
-1. Download the latest release
-2. Extract to a folder of your choice
-3. Run `CrxMem.exe`
+### Main application
 
-### User settings
+1. Build or download the Release version.
+2. Open `CrxMem\bin\Release\net8.0-windows\`.
+3. Run `CrxMem.exe`.
 
-CrxMem stores its versioned settings in `%LocalAppData%\CrxMem\settings.json`. On the
-first run after upgrading, existing values under `HKCU\Software\CrxMem` are imported
-when no JSON settings file exists. Invalid JSON is preserved as
-`settings.invalid-<timestamp>.json` and replaced with safe defaults.
+### Settings storage
 
-### Optional: Install Kernel Driver
-```cmd
-sc create CrxShield type= kernel binPath= "C:\path\to\CrxShield.sys"
-sc start CrxShield
+CrxMem stores versioned settings in:
+
+```text
+%LocalAppData%\CrxMem\settings.json
 ```
+
+Older registry-backed settings are imported on first run when appropriate. Invalid JSON is preserved as a timestamped recovery file and replaced with safe defaults.
+
+### Optional driver setup
+
+Driver management helpers live under:
+
+```text
+CrxShield\Tools\
+```
+
+Use those scripts and commands rather than inventing a custom install flow.
 
 ---
 
-## Usage
+## Basic Usage
 
-### Basic Memory Scanning
-1. **File > Open Process** - Select target process
-2. Enter the value to find
-3. Select **Value Type** (4 Bytes for integers, Float for decimals)
-4. Click **First Scan**
-5. Change the value in the target application
-6. Enter new value and click **Next Scan**
-7. Repeat until you find the address
-8. Double-click to add to Address List
+### Scanner workflow
 
-### Address List
-- **Double-click** to edit value
-- **Checkbox** to freeze value
-- **Right-click** for more options
+1. Use `File > Open Process`.
+2. Enter a value to search for.
+3. Choose a scan type and value type.
+4. Run `First Scan`.
+5. Change the value in the target.
+6. Run `Next Scan` until the result set is small enough.
+7. Add matching rows to the Address List.
+
+### Memory View routes
+
+- Use `Memory View` from the main window for the newer WPF route.
+- Use `Tools > Memory Viewer (Legacy)` if you want the older retained viewer.
+
+### Bookmark workflow
+
+- In the WPF Memory View, use `Ctrl+D` to toggle a bookmark on the selected instruction.
+- Use `;` to edit comment/bookmark metadata.
+- Use `Ctrl+Shift+B` or the workspace button to open Bookmark Manager.
 
 ---
 
 ## Project Details
 
-### CrxMem Structure
+### CrxMem structure
+
 ```text
 CrxMem/
-|-- Core/                    # Scanning, process access, and analysis services
-|-- LuaScripting/            # Incomplete Lua API
-|-- MemoryView/              # WinForms hex viewer and disassembler
-|-- Legacy/                  # Excluded shell retained for migration reference
-|-- Themes/                  # WPF themes
-|-- MainWindow.xaml          # Active WPF shell
-`-- SettingsWindow.xaml      # Native WPF settings UI
+|-- Core/                           # Scanning, process access, driver-aware services
+|-- MemoryView/                     # Legacy viewer + WPF Memory View implementation
+|-- MemoryView/Wpf/                 # Newer Memory View views, services, and themes
+|-- Legacy/                         # Retained legacy shell/reference pieces
+|-- LuaScripting/                   # Lua integration work
+|-- Themes/                         # MainWindow theme resources
+|-- MainWindow.xaml                 # Main compact WPF shell
+|-- SettingsWindow.xaml             # Settings UI including CrxShield tooling
+`-- WatchdogHunterWindow.xaml       # Watchdog Hunter research tool
 ```
 
-### CrxShield Structure
-```text
-CrxShield/
-|-- driver.c                 # Main driver code
-|-- CrxDriverController.h    # IOCTL definitions
-`-- CrxShield.inf            # Installation file
-```
+### Documentation
 
-### VEHDebugDll Structure
-```text
-VEHDebugDll/
-|-- VEHDebug.cpp             # Main implementation
-|-- VEHDebug.h               # API definitions
-`-- VEHDebug.def             # DLL exports
-```
+- `Documentation/DesignReferences/` holds captured visual references.
+- `Documentation/Plans/` holds milestone and redesign plans.
+- Companion folders such as `GunzAnalysis/` and `FxpStrip/` contain deeper research notes and experiments.
 
 ---
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and project boundaries. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and boundaries. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -241,10 +273,10 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the develo
 
 **This software is provided for educational and security research purposes only.**
 
-- Do NOT use for malicious purposes
-- Do NOT use to bypass anti-cheat in online games
-- The author is NOT responsible for any misuse
-- Always test kernel drivers on isolated systems
+- Do not use it for malicious purposes.
+- Do not use it to attack online games or third-party services.
+- Treat kernel and anti-cheat features as isolated research tooling.
+- Always test risky features on systems you can recover.
 
 ---
 
@@ -252,6 +284,3 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the develo
 
 Licensed under the [MIT License](LICENSE).
 
----
-
-**Created by ZxPwd**
